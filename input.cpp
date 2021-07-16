@@ -46,8 +46,42 @@ mutex TopLock, WriteLock, StdinLock;
 #define read_is_forward(b) (((b)->core.flag&BAM_FREVERSE) == 0)
 #define read_mate_is_forward(b) (((b)->core.flag&BAM_FMREVERSE) == 0)
 
-int getTech(bam_hdr_t* Header)//return 0: SMRT, 1:NGS, -1: others
+int getTechFromReads(bam_hdr_t *Header, htsFile* SamFile)
 {
+	int CheckN=10;
+	bam1_t *br=bam_init1();
+	for (int i=0;i<CheckN;++i)
+	{
+		sam_read1(SamFile,Header,br);
+		if (bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br))>1000) return 0;
+	}
+	return 1;
+}
+
+int getTech(const char * ReferenceFileName, const char * BamFileName)//return 0: SMRT, 1:NGS, -1: others
+{
+	htsFile* SamFile;//the file of BAM/CRAM
+	bam_hdr_t* Header;//header for BAM/CRAM file
+	hts_idx_t* BamIndex;
+	vector<Stats> AllStats;
+	const char * SampleFileName=BamFileName;
+	SamFile = hts_open(SampleFileName, "rb");
+	BamIndex= sam_index_load(SamFile,SampleFileName);
+	if (BamIndex==NULL)
+	{
+		hts_close(SamFile);
+		die("Please index the samfile(%s) first!",SampleFileName);
+	}
+	//set reference file
+	if (NULL != ReferenceFileName)
+	{
+		char referenceFilenameIndex[128];
+		strcpy(referenceFilenameIndex, ReferenceFileName);
+		strcat(referenceFilenameIndex, ".fai");
+		int ret = hts_set_fai_filename(SamFile, referenceFilenameIndex);
+	}
+	Header = sam_hdr_read(SamFile);
+
 	int Tech;//0: SMRT, 1:NGS
 	kstring_t ks=KS_INITIALIZE;
 	ks_resize(&ks,1000);
@@ -76,11 +110,24 @@ int getTech(bam_hdr_t* Header)//return 0: SMRT, 1:NGS, -1: others
 	}
 	else
 	{
-		Tech=-1;
+		Tech=getTechFromReads(Header,SamFile);
 	}
+	hts_close(SamFile);
 	return Tech;
 }
 
+vector<int> getAllTechs(Arguments & Args)
+{
+	vector<int> AllTechs;
+	for (int i=0;i<Args.BamFileNames.size();++i)
+	{
+		const char * SampleFileName=Args.BamFileNames[i];
+		AllTechs.push_back(getTech(Args.ReferenceFileName,Args.BamFileNames[i]));
+	}
+	return AllTechs;
+}
+
+//get soft and hard clip length sum
 float getClipLength(bam1_t * br)
 {
 	uint32_t* cigars=bam_get_cigar(br);
@@ -92,6 +139,9 @@ float getClipLength(bam1_t * br)
 	return ClipLength;
 }
 
+//get query length without head and tail clips
+#define brGetClippedQlen(br) (getClippedQLen(br->core.n_cigar,bam_get_cigar(br)))
+//get query length without head and tail clips
 int getClippedQLen(uint32_t CIGARN, uint32_t* CIGARD)
 {
 	int Start=0,N=CIGARN;
@@ -107,6 +157,9 @@ int getClippedQLen(uint32_t CIGARN, uint32_t* CIGARD)
 	return bam_cigar2qlen(N,CIGARD+Start);
 }
 
+//get read length(with all clipped length)
+#define brGetReadLength(br) (getReadLength(br->core.n_cigar,bam_get_cigar(br)))
+//get read length(with all clipped length)
 int getReadLength(uint32_t CIGARN, uint32_t* CIGARD)//included hard clip
 {
 	int Start=0,N=CIGARN;
@@ -187,16 +240,16 @@ struct Alignment
 	}
 };
 
-void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures)
+void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
 {
 	for (int i=1;i<Aligns.size();++i)
 	{
 		//if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
-		if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
+		if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=Args.MinSVLen) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
 	}
 }
 
-void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures)
+void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
 {
 	for (int i=1;i<Aligns.size();++i)
 	{
@@ -215,7 +268,7 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 			}
 			else
 			{
-				if (Aligns[i-1].End-Aligns[i].Pos>=50)
+				if (Aligns[i-1].End-Aligns[i].Pos>=Args.MinSVLen)
 				{
 					Dup=1;
 				}
@@ -231,7 +284,7 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, vector<Signature> &Signatures)
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, vector<Signature> *TypeSignatures, Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	vector<Alignment> Aligns;
@@ -270,10 +323,11 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, b
 		k+=1;
 	}
 	sort(Aligns.data(),Aligns.data()+Aligns.size());
-	searchDelFromAligns(br,Aligns,Tech,Signatures);
-	searchDupFromAligns(br,Aligns,Tech,Signatures);
+	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
+	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[1], Args);
 }
 
+//This kind of signature should - some normal isize when calc svlen
 void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature>& Signatures)
 {
 	if ((!read_is_unmapped(br)) && (!read_mate_is_unmapped(br)))
@@ -281,49 +335,50 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature>& Signatu
 		if (read_is_forward(br) && (!read_mate_is_forward(br)))
 		{
 			//uint32_t * cigars=bam_get_cigar(br);
-			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) Signatures.push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize)));
-			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) Signatures.push_back(Signature(1,1,1,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize)));
+			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) Signatures.push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
+			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) Signatures.push_back(Signature(1,1,1,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
 		}
 	}
 }
 
-void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures)
+void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
 	uint32_t * cigars=bam_get_cigar(br);
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
 	//int MergeDis=500;
-	int MinMergeDis=100;
+	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	for (int i=0;i<br->core.n_cigar;++i)
 	{
-		if (bam_cigar_op(cigars[i])==BAM_CDEL)
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
 		{
 			if (CurrentStart==-1)
 			{
 				CurrentStart=Begin;
 				CurrentLength=0;
 			}
-			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*0.2>MinMergeDis?CurrentLength*0.2:MinMergeDis))
+			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 			{
-				if(CurrentLength>=50) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
 				CurrentStart=-1;
 			}
 			int rlen=bam_cigar2rlen(1,cigars+i);
 			CurrentLength+=rlen;
 		}
-		if (bam_cigar_op(cigars[i])==BAM_CINS)
-		{
-			if (CurrentStart!=-1)
-			{
-				int rlen=bam_cigar2rlen(1,cigars+i);
-				CurrentLength-=rlen;
-			}
-		}
+		// if (bam_cigar_op(cigars[i])==BAM_CINS)
+		// {
+		// 	if (CurrentStart!=-1)
+		// 	{
+		// 		int rlen=bam_cigar2rlen(1,cigars+i);
+		// 		CurrentLength-=rlen;
+		// 	}
+		// }
 		Begin+=bam_cigar2rlen(1,cigars+i);
 	}
 	if (CurrentStart!=-1)
 	{
-		if(CurrentLength>=50) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
 	}
 	/*
 	vector<int> Splits;
@@ -406,17 +461,17 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures)
 		//Begin+=bam_cigar2rlen(1,cigars+i);
 }
 
-void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats &SampleStats, vector<Signature>& Signatures)
+void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, Arguments & Args)
 {
-	getDelFromCigar(br,Tech,Signatures);
+	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	if (Tech==1)
 	{
 		if (read_is_paired(br) && read_is_read1(br))
 		{
-			getDRPSignature(br, SampleStats, Signatures);
+			getDRPSignature(br, SampleStats, TypeSignatures[1]);
 		}
 	}
-	searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, Signatures);
+	searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);
 }
 
 /*
@@ -488,7 +543,7 @@ void readBamToBrBlock(htsFile * SamFile,bam_hdr_t *Header, BrBlock** Top)
 }
 */
 
-void takePipeAndHandleBr(Contig &TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats & SampleStats, vector<Signature>& Signatures,FILE* Pipe=stdin)
+void takePipeAndHandleBr(Contig &TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats & SampleStats, vector<Signature>* TypeSignatures, Arguments & Args, FILE* Pipe=stdin)
 {
     bam1_t *br=bam_init1();
 	size_t linebuffersize=1024*0124;
@@ -501,7 +556,7 @@ void takePipeAndHandleBr(Contig &TheContig, htsFile* SamFile, bam_hdr_t * Header
 	{
 		kstring_t ks={length,linebuffersize,linebuffer};
 		sam_parse1(&ks,Header,br);
-		handlebr(br,TheContig,SamFile,Header,BamIndex,Tech, SampleStats, Signatures);
+		handlebr(br,TheContig,SamFile,Header,BamIndex,Tech, SampleStats, TypeSignatures, Args);
 		StdinLock.lock();
 		length=getline(&linebuffer,&linebuffersize,Pipe);
 		StdinLock.unlock();
@@ -544,40 +599,43 @@ Stats getSampleStats(const char * ReferenceFileName, const char * SampleFileName
 		return SampleStats;
 }
 
-vector<Stats> getAllStats(const char * ReferenceFileName, const vector<const char *> & BamFileNames)
+vector<Stats> getAllStats(const char * ReferenceFileName, const vector<const char *> & BamFileNames, vector<int> AllTechs)
 {
-	htsFile* SamFile;//the file of BAM/CRAM
-	bam_hdr_t* Header;//header for BAM/CRAM file
-	hts_idx_t* BamIndex;
 	vector<Stats> AllStats;
 	for (int k=0;k<BamFileNames.size();++k)
 	{
 		const char * SampleFileName=BamFileNames[k];
-		SamFile = hts_open(SampleFileName, "rb");
-		BamIndex= sam_index_load(SamFile,SampleFileName);
-		if (BamIndex==NULL)
-		{
-			hts_close(SamFile);
-			die("Please index the samfile(%s) first!",SampleFileName);
-		}
-		//set reference file
-		if (NULL != ReferenceFileName)
-		{
-			char referenceFilenameIndex[128];
-			strcpy(referenceFilenameIndex, ReferenceFileName);
-			strcat(referenceFilenameIndex, ".fai");
-			int ret = hts_set_fai_filename(SamFile, referenceFilenameIndex);
-		}
-		Header = sam_hdr_read(SamFile);
-		int Tech=getTech(Header);
-		hts_close(SamFile);
-		AllStats.push_back(getSampleStats(ReferenceFileName,SampleFileName,Tech));
+		AllStats.push_back(getSampleStats(ReferenceFileName,SampleFileName,AllTechs[k]));
 	}
 	return AllStats;
 }
 
-void collectSignatures(Contig &TheContig, vector<Signature> &ContigSignatures, const char * ReferenceFileName, const vector<const char *> & BamFileNames, vector<Stats> AllStats, const char * DataSource)
+string getSampleName(bam_hdr_t* Header)
 {
+	char SampleName[1024];
+	kstring_t ks=KS_INITIALIZE;
+	ks_resize(&ks,1000);
+	sam_hdr_find_line_pos(Header,"RG",0,&ks);
+	int splitn;
+	int * splitoffsets=ksplit(&ks,'\t',&splitn);
+	for (int i=0;i<splitn;++i)
+	{
+		if (memcmp(ks.s+splitoffsets[i],"SM",2)==0)
+		{
+			int End=ks_len(&ks);
+			if (i<splitn-1) End=splitoffsets[i+1];
+			memcpy(SampleName,ks.s+splitoffsets[i]+3,End-splitoffsets[i]-3);
+			SampleName[End-splitoffsets[i]-3]='\0';
+		}
+	}
+	ks_free(&ks);
+	return string(SampleName);
+}
+
+void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, Arguments & Args, vector<Stats> AllStats, vector<int> AllTechs, const char * DataSource)
+{
+	const char * ReferenceFileName=Args.ReferenceFileName;
+	const vector<const char *> & BamFileNames=Args.BamFileNames;
 	for (int k=0;k<BamFileNames.size();++k)
 	{
 		const char * SampleFileName=BamFileNames[k];
@@ -610,7 +668,12 @@ void collectSignatures(Contig &TheContig, vector<Signature> &ContigSignatures, c
 		}
 		Header = sam_hdr_read(SamFile);
 
-		int Tech=getTech(Header);
+		int Tech=AllTechs[k];
+		if (Args.SampleName=="*")
+		{
+			string SampleName=getSampleName(Header);
+			if (SampleName!="") Args.SampleName=SampleName;
+		}
 
 		int ReadCount=0, UnmappedCount=0;
 		FILE * DSFile=0;
@@ -632,7 +695,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> &ContigSignatures, c
 		}
 		if (DataSource!=0)
 		{
-			takePipeAndHandleBr(TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigSignatures,DSFile);
+			takePipeAndHandleBr(TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigTypeSignatures,Args,DSFile);
 		}
 		else
 		{
@@ -640,7 +703,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> &ContigSignatures, c
 			hts_itr_t* RegionIter=sam_itr_querys(BamIndex,Header,Region.c_str());
 			while(sam_itr_next(SamFile, RegionIter, br) >=0)//read record
 			{
-				handlebr(br,TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigSignatures);
+				handlebr(br,TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigTypeSignatures, Args);
 			}
 			bam_destroy1(br);
 		}
