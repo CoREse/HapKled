@@ -1,4 +1,5 @@
 #include "signature.h"
+#include <string.h>
 using namespace std;
 
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName)
@@ -14,10 +15,30 @@ void Signature::setCN(int cn)
 {
     CN=cn;
 }
-bool Signature::operator<(const Signature &Other)
+bool Signature::operator<(const Signature &Other) const
 {
-    return this->Begin<Other.Begin;
+    char AL[100], BL[100];
+    sprintf(AL,"%d",this->Length);
+    sprintf(BL,"%d",Other.Length);
+    int cmp=strcmp(AL,BL);
+    if (this->Begin<Other.Begin) return true;
+    else if (this->Begin>Other.Begin) return false;
+    // else if (this->Length<Other.Length) return true;
+    // else if (this->Length>Other.Length) return false;
+    else if (cmp<0) return true;
+    else if (cmp>0) return false;
+    else return this->TemplateName<Other.TemplateName;
+}
+
+bool Signature::operator==(const Signature &Other) const
+{
+    return Tech==Other.Tech && SupportedSV==Other.SupportedSV && TemplateName==Other.TemplateName && Begin==Other.Begin && End==Other.End && Segments==Other.Segments;
 }
 
 Segment::Segment(int Begin,int End)
 :Begin(Begin),End(End){}
+
+bool Segment::operator==(const Segment & Other) const
+{
+    return Begin==Other.Begin && End==Other.End;
+}

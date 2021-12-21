@@ -5,6 +5,7 @@
 using namespace std;
 using namespace cre;
 
+#define CUTE_VER
 int precisionLevel(const Signature &A)
 {
     if (A.Tech==1 && A.Type==1) return 0;//drp sig, imprecise pricision
@@ -52,8 +53,10 @@ float calcOverlap(float B1, float E1, float B2, float E2)
 
 float distance(const Signature &A, const Signature &B, bool Partial, float * PPD, Stats BamStats)
 {
+    #ifdef CUTE_VER
     *PPD=abs(A.Begin-B.Begin);
     return *PPD;
+    #endif
     //if (A.SupportedSV!=B.SupportedSV) return 100;//it shouldn't happen
     float SDW, PDW, ODW;
     float PDN=900;//TODO: should be realated by tech and type, should make pd>0.5 means not the same
@@ -61,9 +64,12 @@ float distance(const Signature &A, const Signature &B, bool Partial, float * PPD
     if (WP==2) PDN=30;
     else if (WP==0 && BP!=1) PDN=2*(BamStats.Mean+3*BamStats.SD);//should be related with the drp stats
     else if (BP==1 && WP==0) PDN=MAX(PDN,2*(BamStats.Mean+3*BamStats.SD));
-    SDW=0.33;
-    PDW=0.33;
-    ODW=0.33;
+    // SDW=0.33;
+    // PDW=0.33;
+    // ODW=0.33;
+    SDW=1;
+    PDW=1;
+    ODW=1;
     float SD,PD,OD;
     PD=MIN(abs(A.Begin-B.Begin),abs(A.End-B.End));
     PD=MIN(PD,abs((A.Begin+A.End)/2-(B.Begin+B.End)/2));
@@ -96,9 +102,33 @@ inline int first0(short * A, int S, int B=0)
     for (int i=B;i<S;++i) if (A==0) return i;
 }
 
-void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)//like jcrd and cuteSV
+void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)//like jcrd and cuteSV, SortedSignatures may have deleted ones marked by Type=-1
 {
+    #ifdef CUTE_VER
     float MaxDis=200;
+    int MinSupport=10;
+    for (int i=0;i<SortedSignatures.size();++i)
+    {
+        if (SortedSignatures[i].Type==-1) continue;
+        // printf("%d %d %s\n",SortedSignatures[i].Begin, SortedSignatures[i].Length, SortedSignatures[i].TemplateName.c_str());
+        if (Clusters.size()==0)
+        {
+            Clusters.push_back(vector<Signature>());
+        }
+        if (Clusters.back().size()==0) Clusters.back().push_back(SortedSignatures[i]);
+        else
+        {
+            if (SortedSignatures[i].Begin-Clusters.back().back().Begin>MaxDis)
+            {
+                if (Clusters.back().size()<MinSupport) Clusters.pop_back();
+                Clusters.push_back(vector<Signature>());
+            }
+            Clusters.back().push_back(SortedSignatures[i]);
+        }
+    }
+    if (Clusters.size()>0 && Clusters.back().size()<MinSupport) Clusters.pop_back();
+    #else
+    float MaxDis=0.7;
     int Size=SortedSignatures.size();
     short *Clustered=(short*) calloc(sizeof(short),Size);
     int F0=0;
@@ -134,4 +164,16 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
         }
         F0=first0(Clustered,Size,F0);
     }
+    free(Clustered);
+    #endif
+    // for (int i=0;i<Clusters.size();++i)
+    // {
+    //     printf("%d:",Clusters[i].size());
+    //     for (int j=0;j<Clusters[i].size();++j)
+    //     {
+    //         printf("%d %d %s,",Clusters[i][j].Begin,Clusters[i][j].Length,Clusters[i][j].TemplateName.c_str());
+    //     }
+    // printf("\n");
+    // }
+    // exit(0);
 }

@@ -8,12 +8,13 @@ struct Segment
 {
     int Begin, End;
     Segment(int Begin,int End);
+    bool operator==(const Segment &) const;
 };
 
 class Signature
 {
     public:
-    int Type;//0: base class, for cigar based signatures, 1: DRPSignatures, 2: ClipSignatures
+    int Type;//0: base class, for cigar based signatures, 1: DRPSignatures, 2: ClipSignatures, -1: mark of deleted signature object.
     int Tech;//0: SMRT, 1:NGS
     int SupportedSV;//0: DEL, 1: Dup
     std::string TemplateName;
@@ -26,7 +27,8 @@ class Signature
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, Segment Read1, Segment Read2, int Length);//for drp Signatures
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, std::vector<Segment> Segments);//for Split reads signatures
     void setCN(int CN);
-    bool operator<(const Signature &Other);
+    bool operator<(const Signature &Other) const;
+    bool operator==(const Signature & Other) const;
 };
 
 #endif

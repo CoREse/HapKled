@@ -11,6 +11,16 @@
 #include <algorithm>
 using namespace std;
 
+void sortAndDeDup(vector<Signature> &V)
+{
+	if (V.size()==0) return;
+	sort(V.begin(),V.begin()+V.size());
+	for (int i=1;i<V.size();++i)
+	{
+		if (V[i]==V[i-1]) V[i].Type=-1;
+	}
+}
+
 Arguments Args;
 int main(int argc, const char* argv[])
 {
@@ -77,7 +87,8 @@ int main(int argc, const char* argv[])
 			if (!ToCall) continue;
 		}
 		vector<Signature> ContigTypeSignatures[2];
-		collectSignatures(Contigs[i],ContigTypeSignatures,Args,AllStats,AllTechs);
+		collectSignatures(Contigs[i],ContigTypeSignatures,Args,AllStats,AllTechs,0);
+		// continue;
 		if (FirstBam)
 		{
 			Header.addSample(Args.SampleName.c_str());
@@ -110,7 +121,10 @@ int main(int argc, const char* argv[])
 		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipdup: %d\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[1].size(),cigardel, cigardup, drpdel, drpdup, clipdel, clipdup);
 		vector<vector<Signature>> SignatureDelClusters;
 		vector<vector<Signature>> SignatureDupClusters;
+		sortAndDeDup(ContigTypeSignatures[0]);
 		simpleClustering(ContigTypeSignatures[0],SignatureDelClusters,AllStats[i]);
+		// exit(0);
+		sortAndDeDup(ContigTypeSignatures[1]);
 		simpleClustering(ContigTypeSignatures[1],SignatureDupClusters,AllStats[i]);
 		vector<VCFRecord> Records;
 		for (int j=0;j<SignatureDelClusters.size();++j)

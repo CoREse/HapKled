@@ -343,28 +343,42 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature>& Signatu
 
 void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
+	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
+	if (br->core.qual<20) return;
+	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
+	if (TLength<500) return;
 	uint32_t * cigars=bam_get_cigar(br);
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
 	//int MergeDis=500;
-	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	int MinMaxMergeDis=0;//Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	for (int i=0;i<br->core.n_cigar;++i)
 	{
 		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
 		{
+			// int rlen=bam_cigar2rlen(1,cigars+i);
+			int rlen=bam_cigar_oplen(cigars[i]);
+			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
 			if (CurrentStart==-1)
 			{
 				CurrentStart=Begin;
-				CurrentLength=0;
+				CurrentLength=rlen;
 			}
-			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
+			else
+			{
+			if (Begin-CurrentStart-CurrentLength>=MinMaxMergeDis)//(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 			{
 				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
-				CurrentStart=-1;
+				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+				CurrentStart=Begin;
+				CurrentLength=rlen;
 			}
-			int rlen=bam_cigar2rlen(1,cigars+i);
-			CurrentLength+=rlen;
+			else
+			{
+				CurrentLength+=rlen;
+			}
+			}
 		}
 		// if (bam_cigar_op(cigars[i])==BAM_CINS)
 		// {
@@ -374,11 +388,13 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 		// 		CurrentLength-=rlen;
 		// 	}
 		// }
-		Begin+=bam_cigar2rlen(1,cigars+i);
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+		//Begin+=bam_cigar2rlen(1,cigars+i);
 	}
 	if (CurrentStart!=-1)
 	{
 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
 	/*
 	vector<int> Splits;
@@ -471,7 +487,7 @@ void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Head
 			getDRPSignature(br, SampleStats, TypeSignatures[1]);
 		}
 	}
-	searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);
+	// searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);
 }
 
 /*

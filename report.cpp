@@ -113,14 +113,20 @@ bool keepCluster(vector<Signature> SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=5) return true;
+    if (ST>=3) return true;
     return false;
+}
+
+void keepLongestPerRead(vector<Signature> & SignatureCluster)
+{
+    
 }
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster)
 {
     assert(SignatureCluster.size()>=0);
     int SS,ST;
+    keepLongestPerRead(SignatureCluster);
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
     string SVType=getSVType(SignatureCluster);
