@@ -13,6 +13,8 @@ EXAMPLE_OBJS=
 HTSLIB=htslib/libhts.a
 LAUNCHER=./launcher
 
+HTSPREFIX=htslib/
+
 .PHONY: all test clean
 
 all: build
@@ -30,8 +32,9 @@ optutils:
 
 $(PROJECT_OBJS): $(PROJECT_HEADERS)
 
+HTSLIB_LIBS = -lz -lm -lbz2 -llzma -lcurl -lpthread -lcrypto -ldeflate
 kled: $(PROJECT_OBJS)
-	$(CC) $^ -o $@ -g -pg -fopenmp -Lhtslib -lhts -lz -Lcrelib -lcre optutils/opthelper.a --std=c++17
+	$(CC) $^ -o $@ -g -pg -fopenmp $(HTSPREFIX)/libhts.a $(HTSLIB_LIBS) -lz -Lcrelib -lcre optutils/opthelper.a --std=c++17
 
 clean:
 	rm *.o kled

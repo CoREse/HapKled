@@ -7,6 +7,8 @@
 #include "crelib/crelib.h"
 #include "time.h"
 #include <set>
+#include <numeric>
+#include "defines.h"
 
 using namespace std;
 
@@ -29,7 +31,7 @@ float stdStat(Signature* Begin,Signature* End)
     return pow(std,0.5);
 }
 
-tuple<int,int> consensusFixed(vector<Signature> &Signatures, int K, float stat(Signature*,Signature*))
+tuple<int,int> consensusFixed(vector<Signature> &Signatures, int K, float stat(Signature*,Signature*))//计算标准差最小的连续K个的pos和length的均值
 {
     if (Signatures.size()==1) return tuple<int,int>(Signatures[0].Begin,(Signatures[0].End-Signatures[0].Begin));
     float MinStd=0;
@@ -113,20 +115,29 @@ bool keepCluster(vector<Signature> SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=3) return true;
+    if (ST>=5) return true;
     return false;
-}
-
-void keepLongestPerRead(vector<Signature> & SignatureCluster)
-{
-    
 }
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster)
 {
+    // printf("%d:",SignatureCluster.size());
+    // for (int j=0;j<SignatureCluster.size();++j)
+    // {
+    //     printf("%d %d %s,",SignatureCluster[j].Begin,SignatureCluster[j].Length,SignatureCluster[j].TemplateName.c_str());
+    // }
+    // printf("\n");
+    // return;
     assert(SignatureCluster.size()>=0);
     int SS,ST;
-    keepLongestPerRead(SignatureCluster);
+    // printf("%d, ",SignatureCluster.size());
+    // for (int i=0;i<SignatureCluster.size();++i)
+    // {
+    //     // printf("[%d, %d, '%s'] ",SignatureCluster[i].Begin,SignatureCluster[i].Length,SignatureCluster[i].TemplateName.c_str());
+    //     printf("%d ", SignatureCluster[i].Length);
+    // }
+    // printf("\n");
+    // return;
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
     string SVType=getSVType(SignatureCluster);
@@ -134,6 +145,17 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     int SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
     //VCF version 4.2 says if alt is <ID>, the pos is the base preceding the polymorphism. No mention of the "base 1" rule.
+    #ifdef CUTE_VER
+    unsigned long long llPos=0;
+    unsigned long long llSVLen=0;
+    for (int i=0;i<SignatureCluster.size();++i)
+    {
+        llPos+=SignatureCluster[i].Begin;
+        llSVLen+=SignatureCluster[i].Length;
+    }
+    Pos=llPos/SignatureCluster.size();
+    SVLen=llSVLen/SignatureCluster.size();
+    #endif
     int TLen;
     int End;
     bool OutTag=true;

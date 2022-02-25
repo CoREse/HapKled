@@ -2,6 +2,8 @@
 #include <string.h>
 using namespace std;
 
+Signature::Signature()
+{}
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName)
 :Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Length(End-Begin){}
 

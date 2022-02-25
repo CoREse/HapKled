@@ -20,11 +20,12 @@
 #include "StatsManager.hpp"
 #include <math.h>
 #include <algorithm>
+#include "htslib/thread_pool.h"
 
 using namespace std;
 using namespace cre;
 
-const int ReadThreadN=1;
+const int ReadThreadN=1;//old mechanism that leaves this number of threads handling reads. not good. obsoleted. use htslib's thread mechanisms instead
 int ThreadN=8;
 
 float MedianInsertionSize=481.2;
@@ -715,6 +716,14 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 		}
 		else
 		{
+    		htsThreadPool p = {NULL, 0};
+			if (ThreadN > 1) {
+				if (!(p.pool = hts_tpool_init(ThreadN))) {
+					die("Error creating thread pool\n");
+				}
+				hts_set_opt(SamFile,  HTS_OPT_THREAD_POOL, &p);
+				// if (settings.out) hts_set_opt(settings.out, HTS_OPT_THREAD_POOL, &p);
+			}
 			bam1_t *br=bam_init1();
 			hts_itr_t* RegionIter=sam_itr_querys(BamIndex,Header,Region.c_str());
 			while(sam_itr_next(SamFile, RegionIter, br) >=0)//read record
@@ -722,6 +731,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 				handlebr(br,TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigTypeSignatures, Args);
 			}
 			bam_destroy1(br);
+			if (p.pool) hts_tpool_destroy(p.pool);
 		}
 		if (DataSource!=0 && strcmp(DataSource,"-")!=0) pclose(DSFile);
 		hts_close(SamFile);

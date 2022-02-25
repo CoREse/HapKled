@@ -24,10 +24,12 @@ void sortAndDeDup(vector<Signature> &V)
 Arguments Args;
 int main(int argc, const char* argv[])
 {
+	bool NoHeader=false;
 	OptHelper OH=OptHelper("kled [Options] Bam1 [Bam2] [Bam3] ...");
     OH.addOpt('R', "Ref", 1, "FileName", "Indicate Reference Fasta File(required)",'s',&(Args.ReferenceFileName));
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
+    OH.addOpt(0, "NOH", 0, "SampleName", "No header, for test",'b',&(NoHeader));
     OH.getOpts(argc,argv);
 
 	Args.BamFileNames=OH.Args;
@@ -89,7 +91,7 @@ int main(int argc, const char* argv[])
 		vector<Signature> ContigTypeSignatures[2];
 		collectSignatures(Contigs[i],ContigTypeSignatures,Args,AllStats,AllTechs,0);
 		// continue;
-		if (FirstBam)
+		if (!NoHeader and FirstBam)
 		{
 			Header.addSample(Args.SampleName.c_str());
 			printf(Header.genHeader().c_str());
@@ -131,6 +133,7 @@ int main(int argc, const char* argv[])
 		{
 			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDelClusters[j]));
 		}
+		// continue;
 		for (int j=0;j<SignatureDupClusters.size();++j)
 		{
 			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDupClusters[j]));

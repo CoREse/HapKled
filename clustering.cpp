@@ -2,10 +2,12 @@
 #include <math.h>
 #include "crelib/crelib.h"
 #include <vector>
+#include <unordered_map>
+#include <algorithm>
+#include "defines.h"
 using namespace std;
 using namespace cre;
 
-#define CUTE_VER
 int precisionLevel(const Signature &A)
 {
     if (A.Tech==1 && A.Type==1) return 0;//drp sig, imprecise pricision
@@ -102,6 +104,37 @@ inline int first0(short * A, int S, int B=0)
     for (int i=B;i<S;++i) if (A==0) return i;
 }
 
+bool SigLengthLess(const Signature & a, const Signature &b)
+{
+    if (a.Length<b.Length) return true;
+    if (a.Length>b.Length) return false;
+    if (a.Begin<b.Begin) return true;
+    if (a.Begin>b.Begin) return false;
+    return a.TemplateName<b.TemplateName;
+}
+
+void keepLongestPerRead(vector<Signature> & SignatureCluster)
+{
+    unordered_map<string, Signature> TempsSig;
+    for (int i=0;i<SignatureCluster.size();++i)
+    {
+        if(TempsSig.count(SignatureCluster[i].TemplateName)==0)
+        {
+            TempsSig[SignatureCluster[i].TemplateName]=SignatureCluster[i];
+        }
+        else if (TempsSig[SignatureCluster[i].TemplateName].Length<SignatureCluster[i].Length)
+        {
+            TempsSig[SignatureCluster[i].TemplateName]=SignatureCluster[i];
+        }
+    }
+    SignatureCluster.clear();
+    for (auto it=TempsSig.begin();it!=TempsSig.end();++it)
+    {
+        SignatureCluster.push_back(it->second);
+    }
+    sort(SignatureCluster.begin(),SignatureCluster.end(),SigLengthLess);
+}
+
 void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)//like jcrd and cuteSV, SortedSignatures may have deleted ones marked by Type=-1
 {
     #ifdef CUTE_VER
@@ -127,6 +160,33 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
         }
     }
     if (Clusters.size()>0 && Clusters.back().size()<MinSupport) Clusters.pop_back();
+    //add dedup and length segment here
+    vector<vector<Signature>> OldCs=Clusters;
+    Clusters.clear();
+    for (int i=0;i< OldCs.size();++i)
+    {
+        keepLongestPerRead(OldCs[i]);
+        if (OldCs[i].size()<10) continue;
+        double MeanLength=0;
+        for (int j=0;j<OldCs[i].size();++j)
+        {
+            MeanLength+=OldCs[i][j].Length;
+        }
+        MeanLength/=double(OldCs[i].size());
+        double Discrete=0.5*MeanLength;
+        Clusters.push_back(vector<Signature>());
+        Clusters.back().push_back(OldCs[i][0]);
+        int LastLen=OldCs[i][0].Length;
+        for (int j=1;j<OldCs[i].size();++j)
+        {
+            if (OldCs[i][j].Length-LastLen>Discrete)
+            {
+                Clusters.push_back(vector<Signature>());
+            }
+            Clusters.back().push_back(OldCs[i][j]);
+            LastLen=OldCs[i][j].Length;
+        }
+    }
     #else
     float MaxDis=0.7;
     int Size=SortedSignatures.size();
@@ -171,7 +231,7 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
     //     printf("%d:",Clusters[i].size());
     //     for (int j=0;j<Clusters[i].size();++j)
     //     {
-    //         printf("%d %d %s,",Clusters[i][j].Begin,Clusters[i][j].Length,Clusters[i][j].TemplateName.c_str());
+    //         printf("%d,",Clusters[i][j].Length);
     //     }
     // printf("\n");
     // }
