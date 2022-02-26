@@ -329,15 +329,15 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, b
 }
 
 //This kind of signature should - some normal isize when calc svlen
-void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature>& Signatures)
+void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature> *TypeSignatures)
 {
 	if ((!read_is_unmapped(br)) && (!read_mate_is_unmapped(br)))
 	{
 		if (read_is_forward(br) && (!read_mate_is_forward(br)))
 		{
 			//uint32_t * cigars=bam_get_cigar(br);
-			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) Signatures.push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
-			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) Signatures.push_back(Signature(1,1,1,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
+			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
+			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[1].push_back(Signature(1,1,1,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
 		}
 	}
 }
@@ -485,7 +485,7 @@ void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Head
 	{
 		if (read_is_paired(br) && read_is_read1(br))
 		{
-			getDRPSignature(br, SampleStats, TypeSignatures[1]);
+			getDRPSignature(br, SampleStats, TypeSignatures);
 		}
 	}
 	// searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);

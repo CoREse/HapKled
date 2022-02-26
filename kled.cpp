@@ -88,7 +88,7 @@ int main(int argc, const char* argv[])
 			}
 			if (!ToCall) continue;
 		}
-		vector<Signature> ContigTypeSignatures[2];
+		vector<Signature> ContigTypeSignatures[2];//For supported SV type
 		collectSignatures(Contigs[i],ContigTypeSignatures,Args,AllStats,AllTechs,0);
 		// continue;
 		if (!NoHeader and FirstBam)
