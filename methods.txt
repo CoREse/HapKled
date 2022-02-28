@@ -5,14 +5,11 @@ fa作为ref，bam作为input，可以有多个bam
 获取bam的统计信息
 生成VCF Header
 标记需要进行call的contig，并跳过不call的
-分类型统计Signature，3种，见Signature类（三类，cigar，DRP，clip）
-    这个类型应是支持的变异类型而非来源类型。我搞混了导致下面input里当它是来源类型，calling当它是变异类型。
+分支持变异类型统计Signature，目前2种，0：DEL，1：DUP
     使用htslib读bam record，可多线程
     对每个br，从CIGAR获取DEL，如果是NGS，提取DRP Signatures
 对每种Signature进行排序和去重
-对每种Signature进行聚类（应改成对每种支持变异类型的Signature进行聚类）
-    这里写错了，应当是先将各个种类的不同SV类型的Signature先合并，然后再对每种变异类型进行聚类。目前好像是写的时候以为0类是DEL，1类是DUP，但实际上这个01类只是Signature来源类型（之所以结果没错是因为现在只用到了0类里的DEL）
-    不对，应该是input地方错了，这个typesignature应当是以支持的变异类型分的
+对每种Signature进行聚类
     目前聚类算法叫simpleCluster，用的是cuteSV的简单聚类方法
 对聚类获得的每个Cluster进行筛选和输出
     筛选主要是看支持的template数量，然后有个SV大小范围
