@@ -21,6 +21,7 @@
 #include <math.h>
 #include <algorithm>
 #include "htslib/thread_pool.h"
+#include "defines.h"
 
 using namespace std;
 using namespace cre;
@@ -344,6 +345,47 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature> *TypeSig
 
 void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
+	#ifdef CUTE_VER
+	if (br->core.qual<20) return;
+	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
+	if (TLength<500) return;
+	uint32_t * cigars=bam_get_cigar(br);
+	int CurrentStart=-1, CurrentLength=0;
+	int Begin=br->core.pos;
+	int MinMaxMergeDis=0;//Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
+	for (int i=0;i<br->core.n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			int rlen=bam_cigar_oplen(cigars[i]);
+			if (CurrentStart==-1)
+			{
+				CurrentStart=Begin;
+				CurrentLength=rlen;
+			}
+			else
+			{
+			if (Begin-CurrentStart-CurrentLength>=MinMaxMergeDis)//(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
+			{
+				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+				CurrentStart=Begin;
+				CurrentLength=rlen;
+			}
+			else
+			{
+				CurrentLength+=rlen;
+			}
+			}
+		}
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+	}
+	if (CurrentStart!=-1)
+	{
+		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+	}
+	return;
+	#endif
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<20) return;
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
@@ -480,6 +522,10 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 
 void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, Arguments & Args)
 {
+	#ifdef CUTE_VER
+	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
+	return;
+	#endif
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	if (Tech==1)
 	{
