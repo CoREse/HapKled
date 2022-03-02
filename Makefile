@@ -8,7 +8,7 @@ PYTHON=python3.8
 INCLUDE=/usr/include/$(PYTHON)
 
 PROJECT_OBJS=kled.o input.o variant.o signature.o contig.o StatsManager.o StatsTracker.o clustering.o report.o
-PROJECT_HEADERS=kled.h input.h variant.h signature.h contig.h clustering.h report.h
+PROJECT_HEADERS=kled.h input.h variant.h signature.h contig.h clustering.h report.h defines.h
 EXAMPLE_OBJS=
 HTSLIB=htslib/libhts.a
 LAUNCHER=./launcher

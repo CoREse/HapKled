@@ -384,8 +384,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	{
 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
 	}
-	return;
-	#endif
+	#else
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<20) return;
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
@@ -518,6 +517,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 		//if ((cigars[i]&0xf==BAM_CDEL)&&cigars[i]>>4>=50) Signatures.push_back(Signature(0,Tech,0,Begin,Begin+cigars[i]>>4,bam_get_qname(br)));
 		//if (align_is_primary(br)&&((cigars[i]&0xf==BAM_CSOFT_CLIP)||cigars[i]&0xf==BAM_CHARD_CLIP)&&(cigars[i]>>4>=10)) searchForClipSignatures(br,TheContig, SamFile, Header, BamIndex, Tech, Signatures);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
+	#endif
 }
 
 void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Header, hts_idx_t* BamIndex, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, Arguments & Args)
