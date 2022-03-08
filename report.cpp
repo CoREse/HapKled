@@ -103,9 +103,118 @@ tuple<int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster)
     return tuple<int,int>(Pos,Length);
 }
 
-int VN=0;
+template <typename IterType> double calcSD(IterType Begin, IterType End)//Not estimate, just calc
+{
+    int Size=0;
+    double Mean=0;
+    for (IterType it=Begin;it!=End;++it)
+    {
+        Mean+=*it;
+        ++Size;
+    }
+    Mean/=(double)Size;
+    double SD=0;
+    for (IterType it=Begin;it!=End;++it)
+    {
+        SD+=pow((*it)-Mean,2.0);
+    }
+    SD/=(double)Size;
+    return pow(SD,0.5);
+}
 
-bool keepCluster(vector<Signature> SignatureCluster, int & SS, int &ST)
+template <typename ValueType,typename IterType> class MemberIter
+{
+    protected:
+    IterType BaseIter;
+    public:
+    MemberIter(IterType A):BaseIter(A){}
+    MemberIter& operator++()
+    {
+        ++BaseIter;
+        return *this;
+    }
+    bool operator!=(const MemberIter & Other)
+    {
+        return BaseIter!=Other.BaseIter;
+    }
+    bool operator!=(const IterType & Other)
+    {
+        return BaseIter!=Other;
+    }
+    // virtual ValueType operator* ();//Can't use virtual in template!
+};
+
+template <typename ValueType,typename IterType> class BeginIter : public MemberIter<ValueType,IterType>
+{
+    public:
+    // using MemberIter<ValueType,IterType>::MemberIter<ValueType,IterType>;
+    BeginIter(IterType A):MemberIter<ValueType,IterType>(A){}
+    ValueType operator* ()
+    {
+        return this->BaseIter->Begin;
+    }
+};
+
+template <typename ValueType,typename IterType> class EndIter : public MemberIter<ValueType,IterType>
+{
+    public:
+    EndIter(IterType A):MemberIter<ValueType,IterType>(A){}
+    ValueType operator* ()
+    {
+        return this->BaseIter->End;
+    }
+};
+template <typename ValueType,typename IterType> class LengthIter : public MemberIter<ValueType,IterType>
+{
+    public:
+    LengthIter(IterType A):MemberIter<ValueType,IterType>(A){}
+    ValueType operator* ()
+    {
+        return this->BaseIter->Length;
+    }
+};
+
+vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
+{
+    vector<double> Scores;//supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source
+    int SS=0;
+    set<string> SupportTemps;;
+    for (int i =0;i<SignatureCluster.size();++i)
+    {
+        ++SS;
+        SupportTemps.insert(SignatureCluster[i].TemplateName);
+    }
+    int ST=SupportTemps.size();
+    double STS=ST>50?100.0:double(ST)/50.0*100.0;
+    double SSS=SS>50?100.0:double(SS)/50.0*100.0;
+    double ASS=(STS+SSS)/2.0;
+    Scores.push_back(ASS);
+    // Scores.push_back(STS);
+    // Scores.push_back(SSS);
+    double BESD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    BESD+=calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    BESD/=2.0;
+    double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    double BESDS=BESD>50?100.0:double(BESD)/50.0*100.0;BESDS=100.0-BESDS;
+    double LengthSDS=LengthSD>50?100.0:double(LengthSD)/50.0*100.0;LengthSDS=100.0-LengthSDS;
+    Scores.push_back(BESDS);
+    double BESDRatio=BESD/(double)SVLen;
+    double BESDRatioS=BESDRatio>0.5?100:BESDRatio/0.5;BESDRatioS=100.0-BESDRatioS;
+    Scores.push_back(BESDRatioS);
+    Scores.push_back(LengthSDS);
+    double LengthSDRatio=LengthSD/(double)SVLen;
+    double LengthSDRatioS=LengthSDRatio>0.5?100:LengthSDRatio/0.5;LengthSDRatioS=100.0-LengthSDRatioS;
+    Scores.push_back(LengthSDRatioS);
+    set<int> Sources;
+    for (int i =0;i<SignatureCluster.size();++i)
+    {
+        if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
+    }
+    Scores.push_back(double(Sources.size())/3.0*100.0);
+    return Scores;
+}
+
+bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
 {
     SS=0;
     set<string> SupportTemps;;
@@ -115,9 +224,21 @@ bool keepCluster(vector<Signature> SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=5) return true;
+    if (ST>=15) return true;
+    double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    // if (ST>=12 && LengthSD<20) return true;
+    if (ST>=10 && LengthSD<10) return true;
+    // if (ST>=5 && LengthSD<5 ) return true;
+    set<int> Sources;
+    for (int i =0;i<SignatureCluster.size();++i)
+    {
+        if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
+    }
+    // if (ST>=3 && LengthSD<5 && Sources.size()>1) return true;
     return false;
 }
+
+int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster)
 {
@@ -156,6 +277,21 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     Pos=llPos/SignatureCluster.size();
     SVLen=llSVLen/SignatureCluster.size();
     #endif
+    unsigned long long llPos=0;
+    unsigned long long llSVLen=0;
+    for (int i=0;i<SignatureCluster.size();++i)
+    {
+        llPos+=SignatureCluster[i].Begin;
+        llSVLen+=SignatureCluster[i].Length;
+    }
+    Pos=llPos/SignatureCluster.size();
+    SVLen=llSVLen/SignatureCluster.size();
+
+    
+    vector<double> Scores=scoring(SignatureCluster,SVLen);
+    // double ScoreWeights[6]={0.40871203731814026, 0.06068359230391065, 0.03527009188325561, 0.2222497437451734, 0.09324874746852145, 0.1798357872809986};
+    // double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
+    // if (Score<80) {Keep=false;return;}
     int TLen;
     int End;
     bool OutTag=true;
@@ -210,6 +346,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     }
     ++Pos;++End;//trans to 1-based
     INFO="PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST);
+    INFO+=";SCORES="+to_string(int(Scores[0]));
+    for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
     //extern int VN;
     //ID="kled."+SVType+"."+to_string(VN);
     //++VN;
@@ -309,4 +447,5 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));
     Header.addHeaderEntry(HeaderEntry("FORMAT","GT","Genotype","1","String"));
+    Header.addHeaderEntry(HeaderEntry("INFO","SCORES","Scores, supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source","6","Integer"));
 }

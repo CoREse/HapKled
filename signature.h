@@ -32,4 +32,8 @@ class Signature
     bool operator==(const Signature & Other) const;
 };
 
+int precisionLevel(const Signature &A);
+int bestPrecision(const Signature &A,const Signature &B);
+int worstPrecision(const Signature &A,const Signature &B);
+
 #endif

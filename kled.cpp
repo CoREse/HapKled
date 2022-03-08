@@ -124,10 +124,10 @@ int main(int argc, const char* argv[])
 		vector<vector<Signature>> SignatureDelClusters;
 		vector<vector<Signature>> SignatureDupClusters;
 		sortAndDeDup(ContigTypeSignatures[0]);
-		simpleClustering(ContigTypeSignatures[0],SignatureDelClusters,AllStats[i]);
+		clustering(ContigTypeSignatures[0],SignatureDelClusters,AllStats[i]);
 		// exit(0);
 		sortAndDeDup(ContigTypeSignatures[1]);
-		simpleClustering(ContigTypeSignatures[1],SignatureDupClusters,AllStats[i]);
+		clustering(ContigTypeSignatures[1],SignatureDupClusters,AllStats[i]);
 		vector<VCFRecord> Records;
 		for (int j=0;j<SignatureDelClusters.size();++j)
 		{

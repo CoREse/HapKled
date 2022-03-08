@@ -231,10 +231,11 @@ struct Alignment
 	}
 	Alignment(int Pos, int Strand, const char * CIGARS)
 	{
-		size_t CIGARN=size_t(strlen(CIGARS)/2);
+		size_t CIGARN=size_t(strlen(CIGARS));//sam_parse_cigar will reallocate if not enough
 		uint32_t * ca=(uint32_t*) malloc(CIGARN*sizeof(uint32_t));
-		sam_parse_cigar(CIGARS,NULL,&ca,&CIGARN);
+		CIGARN=sam_parse_cigar(CIGARS,NULL,&ca,&CIGARN);
 		construct(Pos,Strand,ca,CIGARN);
+		free(ca);
 	}
 	bool operator<(const Alignment &other) const
 	{
@@ -302,12 +303,18 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, b
 	const char * cigars;
 	pos=br->core.pos;
 	strand= read_is_forward(br)?1:0;
+	// uint32_t CIGARN=br->core.n_cigar;
+	// uint32_t CIGAR[CIGARN];
+	// memcpy(CIGAR,bam_get_cigar(br),CIGARN*sizeof(uint32_t));
+	// if (CIGARN!=br->core.n_cigar) fprintf(stderr,"notsamen");
+	// if (memcmp(CIGAR,bam_get_cigar(br),CIGARN*sizeof(uint32_t))!=0) fprintf(stderr,"notsame");
+	// Aligns.push_back(Alignment(pos,strand,CIGAR,CIGARN));
 	Aligns.push_back(Alignment(pos,strand,bam_get_cigar(br),br->core.n_cigar));
 	for (int i=0;i<SACharLen;i+=strlen(SATag+i)+1)
 	{
 		if (k%6==0)//rname
 		{
-			if (strcmp(SATag+i,Header->target_name[br->core.tid])!=0)
+			if (strcmp(SATag+i,Header->target_name[br->core.tid])!=0)//Pass other contig. Should be altered if want to do multi-chromosome sv.
 			{
 				++k;
 				i+=strlen(SATag+i)+1;
@@ -319,12 +326,17 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, htsFile* SamFile, b
 		else if (k%6==3) cigars=SATag+i;//CIGAR
 		else if (k%6==5)
 		{
+			// printf(" %s",cigars);
 			if (abs(pos-br->core.pos)<=1000000)
 				Aligns.push_back(Alignment(pos,strand,cigars));
 		}
 		k+=1;
 	}
 	sort(Aligns.data(),Aligns.data()+Aligns.size());
+	// printf("name:%s; size:%lu;",bam_get_qname(br),Aligns.size());
+	// // for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
+	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
+	// printf("\n");
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
 	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[1], Args);
 }
@@ -393,7 +405,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
 	//int MergeDis=500;
-	int MinMaxMergeDis=0;//Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	for (int i=0;i<br->core.n_cigar;++i)
 	{
@@ -409,7 +421,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 			}
 			else
 			{
-			if (Begin-CurrentStart-CurrentLength>=MinMaxMergeDis)//(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
+			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 			{
 				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
 				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
@@ -534,7 +546,7 @@ void handlebr(bam1_t *br, Contig & TheContig, htsFile* SamFile, bam_hdr_t * Head
 			getDRPSignature(br, SampleStats, TypeSignatures);
 		}
 	}
-	// searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);
+	searchForClipSignatures(br, TheContig, SamFile, Header, BamIndex, Tech, TypeSignatures, Args);
 }
 
 /*
@@ -753,6 +765,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 					//fprintf(stderr,cmd);
 				}
 				DSFile = popen(cmd, "r");
+				free(cmd);
 				if (!DSFile) throw runtime_error("popen() failed!");
 			}
 		}

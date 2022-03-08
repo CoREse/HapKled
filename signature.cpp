@@ -1,5 +1,6 @@
 #include "signature.h"
 #include <string.h>
+#include "crelib/crelib.h"
 using namespace std;
 
 Signature::Signature()
@@ -43,4 +44,21 @@ Segment::Segment(int Begin,int End)
 bool Segment::operator==(const Segment & Other) const
 {
     return Begin==Other.Begin && End==Other.End;
+}
+
+int precisionLevel(const Signature &A)
+{
+    if (A.Tech==1 && A.Type==1) return 0;//drp sig, imprecise pricision
+    if (A.Tech==0) return 1;//SMRT CIGAR and CLIP, vague precision
+    return 2;//NGS CIGAR and clip, precise precision
+}
+
+int bestPrecision(const Signature &A,const Signature &B)
+{
+    return MAX(precisionLevel(A),precisionLevel(B));
+}
+
+int worstPrecision(const Signature &A,const Signature &B)
+{
+    return MIN(precisionLevel(A),precisionLevel(B));
 }
