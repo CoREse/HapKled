@@ -7,6 +7,7 @@
 #include "htslib/htslib/faidx.h"
 #include "contig.h"
 #include <map>
+#include "kled.h"
 
 struct HeaderEntry
 {
@@ -52,11 +53,13 @@ class VCFRecord
 
     bool Keep;//keep this record
 
-    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster);
+    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments &Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
 };
 
 void addKledEntries(VCFHeader & Header);
+
+double getAmbientCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args);
 
 #endif

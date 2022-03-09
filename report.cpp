@@ -176,6 +176,7 @@ template <typename ValueType,typename IterType> class LengthIter : public Member
 
 vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
 {
+    SVLen=abs(SVLen);
     vector<double> Scores;//supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source
     int SS=0;
     set<string> SupportTemps;;
@@ -199,11 +200,11 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     double LengthSDS=LengthSD>50?100.0:double(LengthSD)/50.0*100.0;LengthSDS=100.0-LengthSDS;
     Scores.push_back(BESDS);
     double BESDRatio=BESD/(double)SVLen;
-    double BESDRatioS=BESDRatio>0.5?100:BESDRatio/0.5;BESDRatioS=100.0-BESDRatioS;
+    double BESDRatioS=BESDRatio>0.5?100:BESDRatio/0.5*100.0;BESDRatioS=100.0-BESDRatioS;
     Scores.push_back(BESDRatioS);
     Scores.push_back(LengthSDS);
     double LengthSDRatio=LengthSD/(double)SVLen;
-    double LengthSDRatioS=LengthSDRatio>0.5?100:LengthSDRatio/0.5;LengthSDRatioS=100.0-LengthSDRatioS;
+    double LengthSDRatioS=LengthSDRatio>0.5?100:LengthSDRatio/0.5*100.0;LengthSDRatioS=100.0-LengthSDRatioS;
     Scores.push_back(LengthSDRatioS);
     set<int> Sources;
     for (int i =0;i<SignatureCluster.size();++i)
@@ -212,6 +213,20 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     }
     Scores.push_back(double(Sources.size())/3.0*100.0);
     return Scores;
+}
+
+double getAmbientCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args)
+{
+    if (End<=Begin) return -1;
+    int WBegin=Begin/Args.CoverageWindowSize;
+    int WEnd=End/Args.CoverageWindowSize+1;
+    double Cov=0;
+    for (int i=WBegin;i<WEnd;++i) 
+    {
+        Cov*=((double)(i-WBegin))/(i-WBegin+1);//in case too big
+        Cov+=CoverageWindows[i]*1/(i-WBegin+1);
+    }
+    return Cov;
 }
 
 bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
@@ -224,11 +239,12 @@ bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=15) return true;
+    if (ST>=2) return true;
+    return false;
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
     // if (ST>=12 && LengthSD<20) return true;
     if (ST>=10 && LengthSD<10) return true;
-    // if (ST>=5 && LengthSD<5 ) return true;
+    if (ST>=5 && LengthSD<5 ) return true;
     set<int> Sources;
     for (int i =0;i<SignatureCluster.size();++i)
     {
@@ -240,7 +256,7 @@ bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
 
 int VN=0;
 
-VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster)
+VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args)
 {
     // printf("%d:",SignatureCluster.size());
     // for (int j=0;j<SignatureCluster.size();++j)
@@ -289,9 +305,39 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
 
     
     vector<double> Scores=scoring(SignatureCluster,SVLen);
-    // double ScoreWeights[6]={0.40871203731814026, 0.06068359230391065, 0.03527009188325561, 0.2222497437451734, 0.09324874746852145, 0.1798357872809986};
-    // double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
-    // if (Score<80) {Keep=false;return;}
+    double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
+    double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
+    double AmbientCoverage=getAmbientCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args);
+    // if (Score<60) {Keep=false;return;}
+    // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
+    if (Scores[0]>10+WholeCoverage*0.5) {Keep=true;}
+    else
+    {
+        if (Scores[0]<3+WholeCoverage*0.3) {Keep=false;return;}
+        // if (Scores[1]<95) {Keep=false;return;}
+        if (Scores[4]<60) {Keep=false;return;}
+        // if (abs(SVLen)>10000)
+        // {
+        //     double BeforeCovergae=-1;
+        //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
+        //     double AfterCoverage=-1;
+        //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
+        //     double Ambient=0;
+        //     double Valid=0;
+        //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
+        //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
+        //     if (Valid!=0) Ambient/=Valid;
+        //     if (Ambient!=0)
+        //     {
+        //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
+        //         if (Center>Ambient*0.6) {Keep=false;return;}
+        //     }
+        // }
+        // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
+        // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
+        // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
+        // else {Keep=false;return;}
+    }
     int TLen;
     int End;
     bool OutTag=true;

@@ -90,7 +90,12 @@ int main(int argc, const char* argv[])
 			if (!ToCall) continue;
 		}
 		vector<Signature> ContigTypeSignatures[2];//For supported SV type
-		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,0);
+		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+		double *CoverageWindows=new double[Contigs[i].Size/CoverageWindowSize+1];
+		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
+		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+		fprintf(stderr,"%ld\n",Contigs[i].Size-1);
+		double WholeCoverage=getAmbientCoverage(0,Contigs[i].Size-1,CoverageWindows,Args);
 		// continue;
 		if (!NoHeader and FirstBam)
 		{
@@ -121,7 +126,7 @@ int main(int argc, const char* argv[])
 				}
 			}
 		}
-		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipdup: %d\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[1].size(),cigardel, cigardup, drpdel, drpdup, clipdel, clipdup);
+		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[1].size(),cigardel, cigardup, drpdel, drpdup, clipdel, clipdup, Contigs[i].Size, WholeCoverage);
 		vector<vector<Signature>> SignatureDelClusters;
 		vector<vector<Signature>> SignatureDupClusters;
 		sortAndDeDup(ContigTypeSignatures[0]);
@@ -132,12 +137,12 @@ int main(int argc, const char* argv[])
 		vector<VCFRecord> Records;
 		for (int j=0;j<SignatureDelClusters.size();++j)
 		{
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDelClusters[j]));
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDelClusters[j],CoverageWindows, WholeCoverage,Args));
 		}
 		// continue;
 		for (int j=0;j<SignatureDupClusters.size();++j)
 		{
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDupClusters[j]));
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDupClusters[j],CoverageWindows, WholeCoverage,Args));
 		}
 		sort(Records.data(),Records.data()+Records.size());
 		for (int j=0;j<Records.size();++j)
@@ -147,6 +152,7 @@ int main(int argc, const char* argv[])
 		//vector<Variant> ContigVariants;
 		//VariantsByContig.push_back(ContigVariants);
 		//callVariants(Contigs[i],VariantsByContig[VariantsByContig.size()-1],ContigSignatures,Args);
+		delete CoverageWindows;
 	}
 
 	//report(VariantsByContig);

@@ -11,6 +11,7 @@ struct Arguments {
 	int MinSVLen=30;
 	int DelMinMaxMergeDis=500;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	double DelMaxMergePortion=0.2;
+	int CoverageWindowSize=100;
 };
 
 #endif
