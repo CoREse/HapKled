@@ -235,8 +235,8 @@ class Brotherhood
     public:
     vector<Signature> Cluster;
     unsigned int MinBegin, MaxEnd;
-    inline static float Ratio=0.3;
-    inline static int ForceBrother=50;
+    inline static float Ratio=0.5;
+    inline static int ForceBrother=10;
     Brotherhood():Cluster(),MinBegin(0),MaxEnd(0) {};
     Brotherhood(Signature &S):Cluster(),MinBegin(0),MaxEnd(0) {setCluster(S);};
     void setCluster(Signature & S)

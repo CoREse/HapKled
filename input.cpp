@@ -706,8 +706,58 @@ string getSampleName(bam_hdr_t* Header)
 	ks_free(&ks);
 	return string(SampleName);
 }
+Sam::Sam():SamFile(NULL), Header(NULL), BamIndex(NULL){}
+void Sam::close()
+{
+	if (SamFile!=NULL) hts_close(SamFile);
+}
+htsThreadPool p = {NULL, 0};
+vector<Sam> initSam(Arguments & Args)
+{
+	vector<Sam> SamFiles;
+	if (ThreadN > 1) {
+		if (!(p.pool = hts_tpool_init(ThreadN))) {
+			die("Error creating thread pool\n");
+		}
+	for (int i=0;i<Args.BamFileNames.size();++i)
+	{
+		SamFiles.push_back(Sam());
+		const char * SampleFileName=Args.BamFileNames[i];
+		SamFiles[i].SamFile = hts_open(SampleFileName, "rb");
+		SamFiles[i].BamIndex= sam_index_load(SamFiles[i].SamFile,SampleFileName);
+		if (SamFiles[i].BamIndex==NULL)
+		{
+			die("Please index the samfile(%s) first!",SampleFileName);
+		}
+		//set reference file
+		const char * ReferenceFileName=Args.ReferenceFileName;
+		if (NULL != ReferenceFileName)
+		{
+			char referenceFilenameIndex[128];
+			strcpy(referenceFilenameIndex, ReferenceFileName);
+			strcat(referenceFilenameIndex, ".fai");
+			int ret = hts_set_fai_filename(SamFiles[i].SamFile, referenceFilenameIndex);
+		}
+		SamFiles[i].Header = sam_hdr_read(SamFiles[i].SamFile);
+		if (Args.SampleName=="*")
+		{
+			string SampleName=getSampleName(SamFiles[i].Header);
+			if (SampleName!="") Args.SampleName=SampleName;
+		}
+		hts_set_opt(SamFiles[i].SamFile,  HTS_OPT_THREAD_POOL, &p);
+		// if (settings.out) hts_set_opt(settings.out, HTS_OPT_THREAD_POOL, &p);
+		}
+	}
+	return SamFiles;
+}
 
-void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, Arguments & Args, vector<Stats> AllStats, vector<int> AllTechs, const char * DataSource)
+void closeSam(vector<Sam> &SamFiles)
+{
+	for (int i=0;i<SamFiles.size();++i) SamFiles[i].close();
+	if (p.pool) hts_tpool_destroy(p.pool);
+}
+
+void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, const char * DataSource)
 {
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
@@ -717,38 +767,15 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 		fprintf(stderr,"Reading %s for region %s...\n",SampleFileName,TheContig.Name.c_str());
 		Stats &SampleStats=AllStats[k];
 
-		htsFile* SamFile;//the file of BAM/CRAM
-		bam_hdr_t* Header;//header for BAM/CRAM file
-		hts_idx_t* BamIndex;
 		string Region=TheContig.Name;
 
 		//if ((!filesystem::exists(string(SampleFileName)+".")) &&(!filesystem::exists(string(SampleFileName)+".")) &&(!filesystem::exists(string(SampleFileName)+".")))
 		//{
 		//	die("Please index the samfile(%s) first!",SampleFileName);
 		//}
-		SamFile = hts_open(SampleFileName, "rb");
-		BamIndex= sam_index_load(SamFile,SampleFileName);
-		if (BamIndex==NULL)
-		{
-			die("Please index the samfile(%s) first!",SampleFileName);
-		}
 
-		//set reference file
-		if (NULL != ReferenceFileName)
-		{
-			char referenceFilenameIndex[128];
-			strcpy(referenceFilenameIndex, ReferenceFileName);
-			strcat(referenceFilenameIndex, ".fai");
-			int ret = hts_set_fai_filename(SamFile, referenceFilenameIndex);
-		}
-		Header = sam_hdr_read(SamFile);
 
 		int Tech=AllTechs[k];
-		if (Args.SampleName=="*")
-		{
-			string SampleName=getSampleName(Header);
-			if (SampleName!="") Args.SampleName=SampleName;
-		}
 
 		int ReadCount=0, UnmappedCount=0;
 		FILE * DSFile=0;
@@ -771,29 +798,22 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 		}
 		if (DataSource!=0)
 		{
-			takePipeAndHandleBr(TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigTypeSignatures,Args,DSFile);
+			takePipeAndHandleBr(TheContig, SamFiles[k].SamFile, SamFiles[k].Header, SamFiles[k].BamIndex, Tech, SampleStats, ContigTypeSignatures,Args,DSFile);
 		}
 		else
 		{
-    		htsThreadPool p = {NULL, 0};
-			if (ThreadN > 1) {
-				if (!(p.pool = hts_tpool_init(ThreadN))) {
-					die("Error creating thread pool\n");
-				}
-				hts_set_opt(SamFile,  HTS_OPT_THREAD_POOL, &p);
-				// if (settings.out) hts_set_opt(settings.out, HTS_OPT_THREAD_POOL, &p);
-			}
+			fprintf(stderr,"here1,%d",SamFiles.size());
 			bam1_t *br=bam_init1();
-			hts_itr_t* RegionIter=sam_itr_querys(BamIndex,Header,Region.c_str());
-			while(sam_itr_next(SamFile, RegionIter, br) >=0)//read record
+			hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
+			fprintf(stderr,"here2");
+			while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 			{
-				handlebr(br,TheContig, SamFile, Header, BamIndex, Tech, SampleStats, ContigTypeSignatures, Args);
+				handlebr(br,TheContig, SamFiles[k].SamFile, SamFiles[k].Header, SamFiles[k].BamIndex, Tech, SampleStats, ContigTypeSignatures, Args);
 			}
+			fprintf(stderr,"here3");
 			bam_destroy1(br);
-			if (p.pool) hts_tpool_destroy(p.pool);
 		}
 		if (DataSource!=0 && strcmp(DataSource,"-")!=0) pclose(DSFile);
-		hts_close(SamFile);
 	}
 }
 

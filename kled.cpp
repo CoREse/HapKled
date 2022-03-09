@@ -73,6 +73,7 @@ int main(int argc, const char* argv[])
 	faidx_t * Ref=fai_load(Args.ReferenceFileName);
 	vector<vector<Variant>> VariantsByContig;
 	bool FirstBam=true;
+	vector<Sam> SamFiles=initSam(Args);
 	for (int i=0;i<NSeq;++i)
 	{
 		if (Args.CallingContigs.size()!=0)
@@ -89,7 +90,7 @@ int main(int argc, const char* argv[])
 			if (!ToCall) continue;
 		}
 		vector<Signature> ContigTypeSignatures[2];//For supported SV type
-		collectSignatures(Contigs[i],ContigTypeSignatures,Args,AllStats,AllTechs,0);
+		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,0);
 		// continue;
 		if (!NoHeader and FirstBam)
 		{
@@ -151,5 +152,6 @@ int main(int argc, const char* argv[])
 	//report(VariantsByContig);
 	fai_destroy(Ref);
 	free(Contigs);
+	closeSam(SamFiles);
     return 0;
 }
