@@ -89,7 +89,8 @@ int main(int argc, const char* argv[])
 			}
 			if (!ToCall) continue;
 		}
-		vector<Signature> ContigTypeSignatures[2];//For supported SV type
+		int NumberOfSVType=3;
+		vector<Signature> ContigTypeSignatures[NumberOfSVType];//For supported SV type
 		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 		double *CoverageWindows=new double[Contigs[i].Size/CoverageWindowSize+1];
 		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
@@ -103,8 +104,8 @@ int main(int argc, const char* argv[])
 			printf(Header.genHeader().c_str());
 			FirstBam=false;
 		}
-		int cigardel=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipdup=0;
-		for (int m=0;m<2;++m)
+		int cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0;
+		for (int m=0;m<NumberOfSVType;++m)
 		{
 			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
 			for (int j=0;j<ContigSignatures.size();++j)
@@ -112,37 +113,36 @@ int main(int argc, const char* argv[])
 				if (ContigSignatures[j].Type==0)
 				{
 					if (ContigSignatures[j].SupportedSV==0) ++cigardel;
-					if (ContigSignatures[j].SupportedSV==1) ++cigardup;
+					if (ContigSignatures[j].SupportedSV==1) ++cigarins;
+					if (ContigSignatures[j].SupportedSV==2) ++cigardup;
 				}
 				else if (ContigSignatures[j].Type==1)
 				{
 					if (ContigSignatures[j].SupportedSV==0) ++drpdel;
-					if (ContigSignatures[j].SupportedSV==1) ++drpdup;
+					if (ContigSignatures[j].SupportedSV==2) ++drpdup;
 				}
 				else
 				{
 					if (ContigSignatures[j].SupportedSV==0) ++clipdel;
-					if (ContigSignatures[j].SupportedSV==1) ++clipdup;
+					if (ContigSignatures[j].SupportedSV==1) ++clipins;
+					if (ContigSignatures[j].SupportedSV==2) ++clipdup;
 				}
 			}
 		}
-		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[1].size(),cigardel, cigardup, drpdel, drpdup, clipdel, clipdup, Contigs[i].Size, WholeCoverage);
-		vector<vector<Signature>> SignatureDelClusters;
-		vector<vector<Signature>> SignatureDupClusters;
-		sortAndDeDup(ContigTypeSignatures[0]);
-		clustering(ContigTypeSignatures[0],SignatureDelClusters,AllStats[i]);
-		// exit(0);
-		sortAndDeDup(ContigTypeSignatures[1]);
-		clustering(ContigTypeSignatures[1],SignatureDupClusters,AllStats[i]);
-		vector<VCFRecord> Records;
-		for (int j=0;j<SignatureDelClusters.size();++j)
+		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[2].size(),cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
+		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVType];
+		for (int k=0;k<NumberOfSVType;++k)
 		{
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDelClusters[j],CoverageWindows, WholeCoverage,Args));
+			sortAndDeDup(ContigTypeSignatures[k]);
+			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],AllStats[i]);
 		}
-		// continue;
-		for (int j=0;j<SignatureDupClusters.size();++j)
+		vector<VCFRecord> Records;
+		for (int k=0;k<NumberOfSVType;++k)
 		{
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureDupClusters[j],CoverageWindows, WholeCoverage,Args));
+			for (int j=0;j<SignatureTypeClusters[k].size();++j)
+			{
+				Records.push_back(VCFRecord(Contigs[i],Ref,SignatureTypeClusters[k][j],CoverageWindows, WholeCoverage,Args));
+			}
 		}
 		sort(Records.data(),Records.data()+Records.size());
 		for (int j=0;j<Records.size();++j)

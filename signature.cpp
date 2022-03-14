@@ -14,6 +14,8 @@ Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, st
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, vector<Segment> Segments)
 :Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Segments(Segments), Length(End-Begin) {}
 
+const char* Signature::SVTypeNames[]={"DEL","INS","DUP"};
+
 void Signature::setCN(int cn)
 {
     CN=cn;

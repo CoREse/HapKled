@@ -56,7 +56,7 @@ tuple<int,int> consensusFixed(vector<Signature> &Signatures, int K, float stat(S
 
 const char * getSVType(const vector<Signature> &Signatures)
 {
-    return Signatures[0].SupportedSV==0?"DEL":"DUP";
+    return Signature::SVTypeNames[Signatures[0].SupportedSV];
 }
 
 tuple<int,int> getConsensusSite(vector<Signature> &Signatures)
@@ -239,7 +239,7 @@ bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=2) return true;
+    if (ST>=1) return true;
     return false;
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
     // if (ST>=12 && LengthSD<20) return true;
@@ -252,6 +252,17 @@ bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
     }
     // if (ST>=3 && LengthSD<5 && Sources.size()>1) return true;
     return false;
+}
+
+bool isClipOnly(vector<Signature> & Cluster)
+{
+    bool HasClip=false, OnlyClip=true;
+    for (int i=0;i<Cluster.size();++i)
+    {
+        if (Cluster[i].Type==2) HasClip=true;
+        else OnlyClip=false;
+    }
+    return HasClip && OnlyClip;
 }
 
 int VN=0;
@@ -310,33 +321,46 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     double AmbientCoverage=getAmbientCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args);
     // if (Score<60) {Keep=false;return;}
     // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
-    if (Scores[0]>10+WholeCoverage*0.5) {Keep=true;}
+    if (SVType=="INS")
+    {
+        if (Scores[0]>=Args.InsASSBases[0]+WholeCoverage*Args.InsASSCoverageMulti[0] && Scores[4]>=Args.InsLSDRSs[0]) {Keep=true;}
+        else
+        {
+            // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
+            if (Scores[0]<Args.InsASSBases[1]+WholeCoverage*Args.InsASSCoverageMulti[1]) {Keep=false;return;}
+            if (Scores[4]<Args.InsLSDRSs[1]) {Keep=false;return;}
+        }
+    }
     else
     {
-        if (Scores[0]<3+WholeCoverage*0.3) {Keep=false;return;}
-        // if (Scores[1]<95) {Keep=false;return;}
-        if (Scores[4]<60) {Keep=false;return;}
-        // if (abs(SVLen)>10000)
-        // {
-        //     double BeforeCovergae=-1;
-        //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
-        //     double AfterCoverage=-1;
-        //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
-        //     double Ambient=0;
-        //     double Valid=0;
-        //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
-        //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
-        //     if (Valid!=0) Ambient/=Valid;
-        //     if (Ambient!=0)
-        //     {
-        //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
-        //         if (Center>Ambient*0.6) {Keep=false;return;}
-        //     }
-        // }
-        // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
-        // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
-        // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
-        // else {Keep=false;return;}
+        if (Scores[0]>=Args.ASSBases[0]+WholeCoverage*Args.ASSCoverageMulti[0] && Scores[4]>=Args.LSDRSs[0]) {Keep=true;}
+        else
+        {
+            if (Scores[0]<Args.ASSBases[1]+WholeCoverage*Args.ASSCoverageMulti[1]) {Keep=false;return;}
+            // if (Scores[1]<95) {Keep=false;return;}
+            if (Scores[4]<Args.LSDRSs[1]) {Keep=false;return;}
+            // if (abs(SVLen)>10000)
+            // {
+            //     double BeforeCovergae=-1;
+            //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
+            //     double AfterCoverage=-1;
+            //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
+            //     double Ambient=0;
+            //     double Valid=0;
+            //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
+            //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
+            //     if (Valid!=0) Ambient/=Valid;
+            //     if (Ambient!=0)
+            //     {
+            //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
+            //         if (Center>Ambient*0.6) {Keep=false;return;}
+            //     }
+            // }
+            // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
+            // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
+            // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
+            // else {Keep=false;return;}
+        }
     }
     int TLen;
     int End;

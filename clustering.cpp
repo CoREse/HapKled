@@ -235,8 +235,8 @@ class Brotherhood
     public:
     vector<Signature> Cluster;
     unsigned int MinBegin, MaxEnd;
-    inline static float Ratio=0.5;
-    inline static int ForceBrother=10;
+    inline static float TypeRatios[3]={0.5,0.5,0.5};//For SV Types
+    inline static int TypeForceBrothers[3]={10,50,10};
     Brotherhood():Cluster(),MinBegin(0),MaxEnd(0) {};
     Brotherhood(Signature &S):Cluster(),MinBegin(0),MaxEnd(0) {setCluster(S);};
     void setCluster(Signature & S)
@@ -248,14 +248,16 @@ class Brotherhood
     }
     bool canMerge(const Brotherhood & Other) const
     {
+        int ForceBrother=Brotherhood::TypeForceBrothers[Cluster[0].SupportedSV];
+        float Ratio=Brotherhood::TypeRatios[Cluster[0].SupportedSV];
             // fprintf(stderr,"%d %d %d %d %d %d %d\n",Other.MinBegin-MaxEnd, Other.MinBegin, MaxEnd, MinBegin-Other.MaxEnd,MinBegin, Other.MaxEnd,Brotherhood::ForceBrother);
-        if (((Other.MinBegin>MaxEnd+Brotherhood::ForceBrother) || ((MinBegin>Other.MaxEnd+Brotherhood::ForceBrother)))) return false;
+        if (((Other.MinBegin>MaxEnd+ForceBrother) || ((MinBegin>Other.MaxEnd+ForceBrother)))) return false;
             // fprintf(stderr,"yes");
         for (const Signature & A:Cluster)
         {
             for (const Signature & B:Other.Cluster)
             {
-                if (isBrother(A,B,Brotherhood::Ratio,Brotherhood::ForceBrother))
+                if (isBrother(A,B,Ratio,ForceBrother))
                 {
                     return true;
                 }
@@ -279,7 +281,7 @@ class Brotherhood
     }
 };
 
-void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)
+void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, int MaxMergeRange=20000)
 {
     list<Brotherhood> Brotherhoods;
     for (Signature & S:SortedSignatures) Brotherhoods.push_back(S);
@@ -291,7 +293,7 @@ void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signa
         {
             for (list<Brotherhood>::iterator Bi=next(Ai);Bi!=Brotherhoods.end();++Bi)
             {
-                if (Ai->MinBegin+20000<Bi->MinBegin) break;
+                if (Ai->MinBegin+MaxMergeRange<Bi->MinBegin) break;
                 if (Ai->merge(*Bi))
                 {
                     Brotherhoods.erase(Bi);

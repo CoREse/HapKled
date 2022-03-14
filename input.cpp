@@ -27,7 +27,6 @@ using namespace std;
 using namespace cre;
 
 const int ReadThreadN=1;//old mechanism that leaves this number of threads handling reads. not good. obsoleted. use htslib's thread mechanisms instead
-int ThreadN=8;
 
 float MedianInsertionSize=481.2;
 float ISSD=36.4;
@@ -252,6 +251,16 @@ void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 	}
 }
 
+void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
+{
+	for (int i=1;i<Aligns.size();++i)
+	{
+		//if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
+		int Gap=(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)-(Aligns[i].Pos+10-Aligns[i-1].End);
+		if (Aligns[i-1].End<Aligns[i].Pos+Args.InsClipTolerance && Gap>=Args.MinSVLen && Gap<Args.InsMaxGapSize) Signatures.push_back(Signature(2,Tech,1,(Aligns[i-1].End+Aligns[i].Pos)/2,MIN(TheContig.Size-1,(Aligns[i-1].End+Aligns[i].Pos)/2+Gap),bam_get_qname(br)));
+	}
+}
+
 void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
 {
 	for (int i=1;i<Aligns.size();++i)
@@ -280,10 +289,10 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 			{
 				v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
 				v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
-				Signatures.push_back(Signature(2,Tech,1,Aligns[i].Pos,Aligns[i-1].End,bam_get_qname(br),v));
+				Signatures.push_back(Signature(2,Tech,2,Aligns[i].Pos,Aligns[i-1].End,bam_get_qname(br),v));
 			}
 		}
-		//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,1,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
+		//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
 	}
 }
 
@@ -338,7 +347,8 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
-	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[1], Args);
+	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Args);
+	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Args);
 }
 
 //This kind of signature should - some normal isize when calc svlen
@@ -350,17 +360,73 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature> *TypeSig
 		{
 			//uint32_t * cigars=bam_get_cigar(br);
 			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
-			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[1].push_back(Signature(1,1,1,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
+			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[2].push_back(Signature(1,1,2,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
 		}
+	}
+}
+
+void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
+{
+	if (br->core.qual<Args.MinMappingQuality) return;
+	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
+	if (TLength<Args.MinTemplateLength) return;
+	uint32_t * cigars=bam_get_cigar(br);
+	int CurrentStart=-1, CurrentLength=0;
+	int Begin=br->core.pos;
+	//int MergeDis=500;
+	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
+	for (int i=0;i<br->core.n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CINS && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			// int rlen=bam_cigar2rlen(1,cigars+i);
+			int qlen=bam_cigar_oplen(cigars[i]);
+			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
+			if (CurrentStart==-1)
+			{
+				CurrentStart=Begin;
+				CurrentLength=qlen;
+			}
+			else
+			{
+				if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
+				{
+					if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+					// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+					CurrentStart=Begin;
+					CurrentLength=qlen;
+				}
+				else
+				{
+					CurrentLength+=qlen;
+				}
+			}
+		}
+		// if (bam_cigar_op(cigars[i])==BAM_CINS)
+		// {
+		// 	if (CurrentStart!=-1)
+		// 	{
+		// 		int rlen=bam_cigar2rlen(1,cigars+i);
+		// 		CurrentLength-=rlen;
+		// 	}
+		// }
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+		//Begin+=bam_cigar2rlen(1,cigars+i);
+	}
+	if (CurrentStart!=-1)
+	{
+		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
 }
 
 void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
 	#ifdef CUTE_VER
-	if (br->core.qual<20) return;
+	if (br->core.qual<Args.MinMappingQuality) return;
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
-	if (TLength<500) return;
+	if (TLength<Args.MinTemplateLength) return;
 	uint32_t * cigars=bam_get_cigar(br);
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
@@ -398,9 +464,9 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	}
 	#else
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
-	if (br->core.qual<20) return;
+	if (br->core.qual<Args.MinMappingQuality) return;
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
-	if (TLength<500) return;
+	if (TLength<Args.MinTemplateLength) return;
 	uint32_t * cigars=bam_get_cigar(br);
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
@@ -535,7 +601,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 inline void statCoverage(bam1_t * br, double *CoverageWindows, Contig & TheContig, Arguments &Args)
 {
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
-	if (br->core.qual<20) return;
+	if (br->core.qual<Args.MinMappingQuality) return;
 	int Begin=br->core.pos;
 	int End=Begin+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
 	if (End>=TheContig.Size) End=TheContig.Size-1;
@@ -560,6 +626,7 @@ void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &Sam
 	#endif
 	statCoverage(br,CoverageWindows,TheContig,Args);
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
+	getInsFromCigar(br,Tech,TypeSignatures[1],Args);
 	if (Tech==1)
 	{
 		if (read_is_paired(br) && read_is_read1(br))
@@ -736,8 +803,8 @@ htsThreadPool p = {NULL, 0};
 vector<Sam> initSam(Arguments & Args)
 {
 	vector<Sam> SamFiles;
-	if (ThreadN > 1) {
-		if (!(p.pool = hts_tpool_init(ThreadN))) {
+	if (Args.ThreadN > 1) {
+		if (!(p.pool = hts_tpool_init(Args.ThreadN))) {
 			die("Error creating thread pool\n");
 		}
 	}
@@ -812,7 +879,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 				cmd[0]='\0';
 				if (strcmp(DataSource,"samtools")==0)
 				{
-					snprintf(cmd,102400,"samtools view -@ %d -T %s %s %s",ThreadN-ReadThreadN-1,ReferenceFileName,SampleFileName,TheContig.Name.c_str());
+					snprintf(cmd,102400,"samtools view -@ %d -T %s %s %s",Args.ThreadN-ReadThreadN-1,ReferenceFileName,SampleFileName,TheContig.Name.c_str());
 					//fprintf(stderr,cmd);
 				}
 				DSFile = popen(cmd, "r");
