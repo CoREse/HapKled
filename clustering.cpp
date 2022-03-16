@@ -234,11 +234,14 @@ class Brotherhood
 {
     public:
     vector<Signature> Cluster;
+    bool CCS;
     unsigned int MinBegin, MaxEnd;
     inline static float TypeRatios[3]={0.5,0.5,0.5};//For SV Types
     inline static int TypeForceBrothers[3]={10,50,10};
-    Brotherhood():Cluster(),MinBegin(0),MaxEnd(0) {};
-    Brotherhood(Signature &S):Cluster(),MinBegin(0),MaxEnd(0) {setCluster(S);};
+    inline static float CCSTypeRatios[3]={1.5,1.5,0.5};//For SV Types
+    inline static int CCSTypeForceBrothers[3]={100,100,10};
+    Brotherhood(bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {};
+    Brotherhood(Signature &S, bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {setCluster(S);};
     void setCluster(Signature & S)
     {
         Cluster.clear();
@@ -250,6 +253,11 @@ class Brotherhood
     {
         int ForceBrother=Brotherhood::TypeForceBrothers[Cluster[0].SupportedSV];
         float Ratio=Brotherhood::TypeRatios[Cluster[0].SupportedSV];
+        if (CCS)
+        {
+            ForceBrother=Brotherhood::CCSTypeForceBrothers[Cluster[0].SupportedSV];
+            Ratio=Brotherhood::CCSTypeRatios[Cluster[0].SupportedSV];
+        }
             // fprintf(stderr,"%d %d %d %d %d %d %d\n",Other.MinBegin-MaxEnd, Other.MinBegin, MaxEnd, MinBegin-Other.MaxEnd,MinBegin, Other.MaxEnd,Brotherhood::ForceBrother);
         if (((Other.MinBegin>MaxEnd+ForceBrother) || ((MinBegin>Other.MaxEnd+ForceBrother)))) return false;
             // fprintf(stderr,"yes");
@@ -281,10 +289,10 @@ class Brotherhood
     }
 };
 
-void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, int MaxMergeRange=20000)
+void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments &Args,int MaxMergeRange=20000)
 {
     list<Brotherhood> Brotherhoods;
-    for (Signature & S:SortedSignatures) Brotherhoods.push_back(S);
+    for (Signature & S:SortedSignatures) Brotherhoods.push_back(Brotherhood(S,Args.AllCCS));
     while (1)
     {
         Brotherhoods.sort([](Brotherhood & a, Brotherhood &b)-> bool {return a.MinBegin<b.MinBegin;});
@@ -310,10 +318,10 @@ void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signa
     }
 }
 
-void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)
+void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
 {
     fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
-    brotherClustering(SortedSignatures,Clusters,BamStats);
+    brotherClustering(SortedSignatures,Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats);
     fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
     // for (int i=0;i<Clusters.size();++i) fprintf(stderr, "%d\n",Clusters[i].size());

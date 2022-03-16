@@ -321,45 +321,71 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     double AmbientCoverage=getAmbientCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args);
     // if (Score<60) {Keep=false;return;}
     // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
-    if (SVType=="INS")
+    if (Args.AllCCS)
     {
-        if (Scores[0]>=Args.InsASSBases[0]+WholeCoverage*Args.InsASSCoverageMulti[0] && Scores[4]>=Args.InsLSDRSs[0]) {Keep=true;}
+        if (SVType=="INS")
+        {
+            if (Scores[0]>=Args.CCSInsASSBases[0]+WholeCoverage*Args.CCSInsASSCoverageMulti[0] && Scores[4]>=Args.CCSInsLSDRSs[0]) {Keep=true;}
+            else
+            {
+                // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
+                if (Scores[0]<Args.CCSInsASSBases[1]+WholeCoverage*Args.CCSInsASSCoverageMulti[1]) {Keep=false;return;}
+                if (Scores[4]<Args.CCSInsLSDRSs[1]) {Keep=false;return;}
+            }
+        }
         else
         {
-            // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
-            if (Scores[0]<Args.InsASSBases[1]+WholeCoverage*Args.InsASSCoverageMulti[1]) {Keep=false;return;}
-            if (Scores[4]<Args.InsLSDRSs[1]) {Keep=false;return;}
+            if (Scores[0]>=Args.CCSASSBases[0]+WholeCoverage*Args.CCSASSCoverageMulti[0] && Scores[4]>=Args.CCSLSDRSs[0]) {Keep=true;}
+            else
+            {
+                if (Scores[0]<Args.CCSASSBases[1]+WholeCoverage*Args.CCSASSCoverageMulti[1]) {Keep=false;return;}
+                // if (Scores[1]<95) {Keep=false;return;}
+                if (Scores[4]<Args.CCSLSDRSs[1]) {Keep=false;return;}
+            }
         }
     }
     else
     {
-        if (Scores[0]>=Args.ASSBases[0]+WholeCoverage*Args.ASSCoverageMulti[0] && Scores[4]>=Args.LSDRSs[0]) {Keep=true;}
+        if (SVType=="INS")
+        {
+            if (Scores[0]>=Args.InsASSBases[0]+WholeCoverage*Args.InsASSCoverageMulti[0] && Scores[4]>=Args.InsLSDRSs[0]) {Keep=true;}
+            else
+            {
+                // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
+                if (Scores[0]<Args.InsASSBases[1]+WholeCoverage*Args.InsASSCoverageMulti[1]) {Keep=false;return;}
+                if (Scores[4]<Args.InsLSDRSs[1]) {Keep=false;return;}
+            }
+        }
         else
         {
-            if (Scores[0]<Args.ASSBases[1]+WholeCoverage*Args.ASSCoverageMulti[1]) {Keep=false;return;}
-            // if (Scores[1]<95) {Keep=false;return;}
-            if (Scores[4]<Args.LSDRSs[1]) {Keep=false;return;}
-            // if (abs(SVLen)>10000)
-            // {
-            //     double BeforeCovergae=-1;
-            //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
-            //     double AfterCoverage=-1;
-            //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
-            //     double Ambient=0;
-            //     double Valid=0;
-            //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
-            //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
-            //     if (Valid!=0) Ambient/=Valid;
-            //     if (Ambient!=0)
-            //     {
-            //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
-            //         if (Center>Ambient*0.6) {Keep=false;return;}
-            //     }
-            // }
-            // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
-            // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
-            // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
-            // else {Keep=false;return;}
+            if (Scores[0]>=Args.ASSBases[0]+WholeCoverage*Args.ASSCoverageMulti[0] && Scores[4]>=Args.LSDRSs[0]) {Keep=true;}
+            else
+            {
+                if (Scores[0]<Args.ASSBases[1]+WholeCoverage*Args.ASSCoverageMulti[1]) {Keep=false;return;}
+                // if (Scores[1]<95) {Keep=false;return;}
+                if (Scores[4]<Args.LSDRSs[1]) {Keep=false;return;}
+                // if (abs(SVLen)>10000)
+                // {
+                //     double BeforeCovergae=-1;
+                //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
+                //     double AfterCoverage=-1;
+                //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
+                //     double Ambient=0;
+                //     double Valid=0;
+                //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
+                //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
+                //     if (Valid!=0) Ambient/=Valid;
+                //     if (Ambient!=0)
+                //     {
+                //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
+                //         if (Center>Ambient*0.6) {Keep=false;return;}
+                //     }
+                // }
+                // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
+                // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
+                // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
+                // else {Keep=false;return;}
+            }
         }
     }
     int TLen;
