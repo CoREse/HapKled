@@ -265,6 +265,27 @@ bool isClipOnly(vector<Signature> & Cluster)
     return HasClip && OnlyClip;
 }
 
+string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageWindows, Arguments & Args)
+{
+    double HomoThreshold=0.8;
+    int Scope=100;
+    int End=Pos+SVLen;
+    if (SVType=="INS")
+    {
+        Scope=500;
+        Pos=MAX(Pos-Scope,0);
+        End=Pos+Scope;
+        HomoThreshold=0.7;
+    }
+    // else
+    // {
+    //     Pos=MAX(Pos-Scope,0);
+    //     End+=Scope;
+    // }
+    if (ST/getAmbientCoverage(Pos,End,CoverageWindows,Args)<HomoThreshold) return "0/1";
+    return "1/1";
+}
+
 int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args)
@@ -451,7 +472,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     QUAL=".";
     FILTER="PASS";
     CHROM=TheContig.Name;
-    Sample["GT"]="./.";
+    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,Args);
 }
 
 VCFRecord::operator std::string() const

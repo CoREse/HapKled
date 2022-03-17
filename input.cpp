@@ -296,13 +296,51 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<Signature> *TypeSignatures, Arguments & Args)
+inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & TheContig, Arguments &Args)
+{
+	if (End>=TheContig.Size) End=TheContig.Size-1;
+	if (End<=Begin) return;
+	int WBegin=Begin/Args.CoverageWindowSize;
+	int WEnd=End/Args.CoverageWindowSize+1;
+	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
+	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
+	CoverageWindows[WBegin]+=FirstPortion;
+	if (WEnd>WBegin+1)
+	{
+		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
+		CoverageWindows[WEnd-1]+=LastPortion;
+	}
+}
+inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & TheContig, Arguments &Args)
+{
+	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
+	if (br->core.qual<Args.MinMappingQuality) return;
+	int Begin=br->core.pos;
+	int End=Begin+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
+	if (End>=TheContig.Size) End=TheContig.Size-1;
+	if (End<=Begin) return;
+	int WBegin=Begin/Args.CoverageWindowSize;
+	int WEnd=End/Args.CoverageWindowSize+1;
+	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
+	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
+	CoverageWindows[WBegin]+=FirstPortion;
+	if (WEnd>WBegin+1)
+	{
+		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
+		CoverageWindows[WEnd-1]+=LastPortion;
+	}
+}
+
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<Signature> *TypeSignatures, double *CoverageWindows,Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
+	{
+		statCoverageCigar(br,CoverageWindows,TheContig,Args);
 		return;
+	}
 	int SACharLen=strlen(SA_tag_char)+1;
 	char SATag[SACharLen];
 	strcpy(SATag,SA_tag_char);
@@ -346,6 +384,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// // for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
+	for (int i=0;i<Aligns.size();++i) statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Args);
 	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Args);
@@ -598,33 +637,13 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	#endif
 }
 
-inline void statCoverage(bam1_t * br, double *CoverageWindows, Contig & TheContig, Arguments &Args)
-{
-	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
-	if (br->core.qual<Args.MinMappingQuality) return;
-	int Begin=br->core.pos;
-	int End=Begin+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
-	if (End>=TheContig.Size) End=TheContig.Size-1;
-	if (End<=Begin) return;
-	int WBegin=Begin/Args.CoverageWindowSize;
-	int WEnd=End/Args.CoverageWindowSize+1;
-	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
-	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
-	CoverageWindows[WBegin]+=FirstPortion;
-	if (WEnd>WBegin+1)
-	{
-		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
-		CoverageWindows[WEnd-1]+=LastPortion;
-	}
-}
-
 void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, double* CoverageWindows,Arguments & Args)
 {
 	#ifdef CUTE_VER
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	return;
 	#endif
-	statCoverage(br,CoverageWindows,TheContig,Args);
+	// statCoverage(br,CoverageWindows,TheContig,Args);
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	getInsFromCigar(br,Tech,TypeSignatures[1],Args);
 	if (Tech==1)
@@ -634,7 +653,7 @@ void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &Sam
 			getDRPSignature(br, SampleStats, TypeSignatures);
 		}
 	}
-	searchForClipSignatures(br, TheContig, SamFile, Tech, TypeSignatures, Args);
+	searchForClipSignatures(br, TheContig, SamFile, Tech, TypeSignatures, CoverageWindows, Args);
 }
 
 /*
