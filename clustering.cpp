@@ -238,8 +238,8 @@ class Brotherhood
     unsigned int MinBegin, MaxEnd;
     inline static float TypeRatios[3]={0.5,0.5,0.5};//For SV Types
     inline static int TypeForceBrothers[3]={10,50,10};
-    inline static float CCSTypeRatios[3]={1.5,1.5,0.5};//For SV Types
-    inline static int CCSTypeForceBrothers[3]={100,100,10};
+    inline static float CCSTypeRatios[3]={2.0,2.5,2.0};//For SV Types
+    inline static int CCSTypeForceBrothers[3]={100,200,100};
     Brotherhood(bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {};
     Brotherhood(Signature &S, bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {setCluster(S);};
     void setCluster(Signature & S)
