@@ -9,6 +9,7 @@
 #include <set>
 #include <numeric>
 #include "defines.h"
+#include <stdio.h>
 
 using namespace std;
 
@@ -192,39 +193,68 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     Scores.push_back(ASS);
     // Scores.push_back(STS);
     // Scores.push_back(SSS);
-    double BESD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
-    BESD+=calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
-    BESD/=2.0;
+    double BESD=0.0;//calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    // BESD+=calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    // BESD/=2.0;
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
-    double BESDS=BESD>50?100.0:double(BESD)/50.0*100.0;BESDS=100.0-BESDS;
-    double LengthSDS=LengthSD>50?100.0:double(LengthSD)/50.0*100.0;LengthSDS=100.0-LengthSDS;
+    double BESDS=0.0;//BESD>50?100.0:double(BESD)/50.0*100.0;BESDS=100.0-BESDS;
+    double LengthSDS=0.0;//LengthSD>50?100.0:double(LengthSD)/50.0*100.0;LengthSDS=100.0-LengthSDS;
     Scores.push_back(BESDS);
-    double BESDRatio=BESD/(double)SVLen;
-    double BESDRatioS=BESDRatio>0.5?100:BESDRatio/0.5*100.0;BESDRatioS=100.0-BESDRatioS;
+    // double BESDRatio=BESD/(double)SVLen;
+    double BESDRatioS=0.0;//BESDRatio>0.5?100:BESDRatio/0.5*100.0;BESDRatioS=100.0-BESDRatioS;
     Scores.push_back(BESDRatioS);
     Scores.push_back(LengthSDS);
     double LengthSDRatio=LengthSD/(double)SVLen;
     double LengthSDRatioS=LengthSDRatio>0.5?100:LengthSDRatio/0.5*100.0;LengthSDRatioS=100.0-LengthSDRatioS;
     Scores.push_back(LengthSDRatioS);
-    set<int> Sources;
-    for (int i =0;i<SignatureCluster.size();++i)
-    {
-        if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
-    }
-    Scores.push_back(double(Sources.size())/3.0*100.0);
+    // set<int> Sources;
+    // for (int i =0;i<SignatureCluster.size();++i)
+    // {
+    //     if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
+    // }
+    Scores.push_back(0.0);//double(Sources.size())/3.0*100.0);
     return Scores;
 }
 
-double getAmbientCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args)
+double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums, double* CheckPoints, int CheckPointInterval)
 {
     if (End<=Begin) return -1;
+    double Cov=0;
     int WBegin=Begin/Args.CoverageWindowSize;
     int WEnd=End/Args.CoverageWindowSize+1;
-    double Cov=0;
-    for (int i=WBegin;i<WEnd;++i) 
+    if (CoverageWindowsSums!=NULL)
     {
-        Cov*=((double)(i-WBegin))/(i-WBegin+1);//in case too big
-        Cov+=CoverageWindows[i]*1/(i-WBegin+1);
+        if ((WBegin/CheckPointInterval+1)*CheckPointInterval>WEnd)
+        {
+            Cov=(CoverageWindowsSums[WEnd]-CoverageWindowsSums[WBegin])/(double)(WEnd-WBegin);
+        }
+        else
+        {
+            int Range=0;
+            for (int i=WBegin/CheckPointInterval+2;i<=WEnd/CheckPointInterval;++i)
+            {
+                Cov*=(double)(Range)/(double)(Range+CheckPointInterval);
+                Cov+=CheckPoints[i]/(double)(Range+CheckPointInterval);
+                Range+=CheckPointInterval;
+            }
+            Cov*=(double)(Range)/(Range+((double)(CheckPointInterval-(WBegin%CheckPointInterval))));
+            Cov+=(CheckPoints[(int)WBegin/CheckPointInterval+1]-CoverageWindowsSums[WBegin])/(double)(Range+(CheckPointInterval-(WBegin%CheckPointInterval)));
+            Range+=(CheckPointInterval-(WBegin%CheckPointInterval));
+            if (WEnd%CheckPointInterval!=0)
+            {
+                Cov*=(double)(Range)/(double)(Range+(WEnd%CheckPointInterval));
+                Cov+=CoverageWindowsSums[WEnd]/(double)(Range+(WEnd%CheckPointInterval));
+                Range+=(WEnd%CheckPointInterval);
+            }
+        }
+    }
+    else
+    {
+        for (int i=WBegin;i<WEnd;++i) 
+        {
+            Cov*=((double)(i-WBegin))/(i-WBegin+1);//in case too big
+            Cov+=CoverageWindows[i]*1/(i-WBegin+1);
+        }
     }
     return Cov;
 }
@@ -265,7 +295,51 @@ bool isClipOnly(vector<Signature> & Cluster)
     return HasClip && OnlyClip;
 }
 
-string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageWindows, Arguments & Args)
+double err=0.1;
+double prior=1.0/3.0;
+string calc_GL_cute(int c0, int c1)
+{
+    int MaxAllowed=100;
+    if (c0+c1>MaxAllowed)
+    {
+        c0=((double)MaxAllowed)*((double)c0)/((double)(c0+c1));
+        c1=MaxAllowed-c0;
+    }
+    double ori_GL00=pow((1.0-err),c0)*pow(err,c1)*(1.0-prior)/2.0;
+    double ori_GL11=pow(err,c0)*pow(1.0-err,c1)*(1.0-prior)/2.0;
+    double ori_GL01=pow(0.5, c0+c1)*prior;
+    // if (ori_GL11>ori_GL01 && ori_GL11>ori_GL00) return "1/1";
+    // return "0/1";
+    double log10Ps[3]={log10(ori_GL00),log10(ori_GL01),log10(ori_GL11)};
+    double MaxLog10=-log10Ps[0];
+    for (int i=1;i<3;++i)
+    {
+        if (MaxLog10<log10Ps[i]) MaxLog10=log10Ps[i];
+    }
+    double sum=0;
+    for (int i=0;i<3;++i)
+    {
+        sum+=pow(10,log10Ps[i]-MaxLog10);
+    }
+    double lse=MaxLog10+log10(sum);
+    double np[3];
+    for (int i=0;i<3;++i) np[i]=MIN(log10Ps[i]-lse,0.0);
+    // fprintf(stderr, "%lf,%lf,%lf\n,",np[0],np[1],np[2]);
+    if (np[2]>np[1] && np[2]>np[0]) return "1/1";
+    return "0/1";
+}
+
+unsigned long long combination(unsigned long long Total, unsigned long long Selected)
+{
+    unsigned long long Result=1;
+    for (unsigned long long i=Total; i>Selected;--i)
+    {
+        Result*=i;
+    }
+    return Result;
+}
+
+string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args)
 {
     double HomoThreshold=0.8;
     int Scope=100;
@@ -282,13 +356,31 @@ string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageW
     //     Pos=MAX(Pos-Scope,0);
     //     End+=Scope;
     // }
-    if (ST/getAmbientCoverage(Pos,End,CoverageWindows,Args)<HomoThreshold) return "0/1";
+    double ErrorRate=0.5;//Error rate of support/deny wrongly seqed/mapped to deny/support.
+    double EAF=0.5;//Estimated Allele Frequencey.
+    int All=getAverageCoverage(Pos,End,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
+    if (ST/All<HomoThreshold) return "0/1";
     return "1/1";
+    int DT=All-int(ST);
+    if (DT<0) DT=0;
+    // fprintf(stderr, "%d,%d,",DT, int(ST));
+    return calc_GL_cute(DT,ST);
+    double PrioPs[3];
+    PrioPs[0]=pow((1.0-EAF),2)*pow(ErrorRate,ST);
+    PrioPs[1]=(1.0-EAF)*EAF*2*combination(All, DT)*pow(0.5,All);
+    PrioPs[2]=EAF*EAF*pow(ErrorRate,DT);
+    double PrioP=0;
+    for (int i=0;i<3;++i) PrioP+=PrioPs[i];
+    double PostPs[3];
+    double MaxP=0;
+    for (int i=0;i<3;++i) {PostPs[i]=PrioPs[i]/PrioP;if (MaxP<PostPs[i]) MaxP=PostPs[i];}
+    if (MaxP==PostPs[3]) return "1/1";
+    return "0/1";
 }
 
 int VN=0;
 
-VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args)
+VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
 {
     // printf("%d:",SignatureCluster.size());
     // for (int j=0;j<SignatureCluster.size();++j)
@@ -339,7 +431,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     vector<double> Scores=scoring(SignatureCluster,SVLen);
     double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
     double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
-    double AmbientCoverage=getAmbientCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args);
+    double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
     // if (Score<60) {Keep=false;return;}
     // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
     if (Args.AllCCS)
@@ -388,9 +480,9 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
                 // if (abs(SVLen)>10000)
                 // {
                 //     double BeforeCovergae=-1;
-                //     if (Pos>10000) BeforeCovergae=getAmbientCoverage(Pos-10000,Pos,CoverageWindows,Args);
+                //     if (Pos>10000) BeforeCovergae=getAverageCoverage(Pos-10000,Pos,CoverageWindows,Args);
                 //     double AfterCoverage=-1;
-                //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAmbientCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
+                //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAverageCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
                 //     double Ambient=0;
                 //     double Valid=0;
                 //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
@@ -398,7 +490,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
                 //     if (Valid!=0) Ambient/=Valid;
                 //     if (Ambient!=0)
                 //     {
-                //         double Center=getAmbientCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
+                //         double Center=getAverageCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
                 //         if (Center>Ambient*0.6) {Keep=false;return;}
                 //     }
                 // }
@@ -472,7 +564,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     QUAL=".";
     FILTER="PASS";
     CHROM=TheContig.Name;
-    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,Args);
+    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
 }
 
 VCFRecord::operator std::string() const

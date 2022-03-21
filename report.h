@@ -53,13 +53,13 @@ class VCFRecord
 
     bool Keep;//keep this record
 
-    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments &Args);
+    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
 };
 
 void addKledEntries(VCFHeader & Header);
 
-double getAmbientCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args);
+double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
 
 #endif

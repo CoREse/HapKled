@@ -9,7 +9,9 @@
 #include "report.h"
 #include "htslib/htslib/faidx.h"
 #include <algorithm>
+#include "crelib/crelib.h"
 using namespace std;
+using namespace cre;
 
 void sortAndDeDup(vector<Signature> &V)
 {
@@ -41,9 +43,11 @@ int main(int argc, const char* argv[])
 		exit(1);
 	}
 
+	updateTime("Starting kled, reading reference...");
 	int NSeq;
 	Contig * Contigs=getContigs(Args.ReferenceFileName,NSeq);//,RDWindowSize);
     
+	updateTime("Reading reference","Getting stats...");
 	vector<int> AllTechs=getAllTechs(Args);
 
 	vector<Stats> AllStats=getAllStats(Args.ReferenceFileName,Args.BamFileNames,AllTechs);
@@ -75,6 +79,7 @@ int main(int argc, const char* argv[])
 	vector<vector<Variant>> VariantsByContig;
 	bool FirstBam=true;
 	vector<Sam> SamFiles=initSam(Args);
+	updateTime("Getting stats", "Starting calling...");
 	for (int i=0;i<NSeq;++i)
 	{
 		if (Args.CallingContigs.size()!=0)
@@ -90,14 +95,31 @@ int main(int argc, const char* argv[])
 			}
 			if (!ToCall) continue;
 		}
+		updateTime("","Calling...");
 		int NumberOfSVType=3;
 		vector<Signature> ContigTypeSignatures[NumberOfSVType];//For supported SV type
 		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
-		double *CoverageWindows=new double[Contigs[i].Size/CoverageWindowSize+1];
+		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
+		double *CoverageWindows=new double[NumberOfCoverageWindows];
 		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
 		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
 		fprintf(stderr,"%ld\n",Contigs[i].Size-1);
-		double WholeCoverage=getAmbientCoverage(0,Contigs[i].Size-1,CoverageWindows,Args);
+		double *CoverageWindowsSums=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
+		CoverageWindows[0]=0;
+		int CheckPointInterval=10000;
+		double *CheckPoints=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
+		CheckPoints[0]=0;
+		for (int i=1;i<NumberOfCoverageWindows+1;++i)
+		{
+			CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
+			if (i%CheckPointInterval==0)
+			{
+				CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
+				CoverageWindowsSums[i]=0;
+			}
+		}
+		double WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+		// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
 		// continue;
 		if (!NoHeader and FirstBam)
 		{
@@ -131,21 +153,25 @@ int main(int argc, const char* argv[])
 			}
 		}
 		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[2].size(),cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
+		
+		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVType];
 		for (int k=0;k<NumberOfSVType;++k)
 		{
 			sortAndDeDup(ContigTypeSignatures[k]);
 			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],AllStats[i],Args);
 		}
+		updateTime("Clustering","Generating results...");
 		vector<VCFRecord> Records;
 		for (int k=0;k<NumberOfSVType;++k)
 		{
 			for (int j=0;j<SignatureTypeClusters[k].size();++j)
 			{
-				Records.push_back(VCFRecord(Contigs[i],Ref,SignatureTypeClusters[k][j],CoverageWindows, WholeCoverage,Args));
+				Records.push_back(VCFRecord(Contigs[i],Ref,SignatureTypeClusters[k][j],CoverageWindows, WholeCoverage,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 			}
 		}
 		sort(Records.data(),Records.data()+Records.size());
+		updateTime("Results generation","Outputing results...");
 		for (int j=0;j<Records.size();++j)
 		{
 			if (Records[j].Keep) printf("\n%s",string(Records[j]).c_str());
@@ -154,6 +180,8 @@ int main(int argc, const char* argv[])
 		//VariantsByContig.push_back(ContigVariants);
 		//callVariants(Contigs[i],VariantsByContig[VariantsByContig.size()-1],ContigSignatures,Args);
 		delete CoverageWindows;
+		free(CoverageWindowsSums);
+		free(CheckPoints);
 	}
 
 	//report(VariantsByContig);
