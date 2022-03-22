@@ -289,10 +289,8 @@ class Brotherhood
     }
 };
 
-void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments &Args,int MaxMergeRange=20000)
+void brotherClusteringList(list<Brotherhood> &Brotherhoods, Arguments &Args)
 {
-    list<Brotherhood> Brotherhoods;
-    for (Signature & S:SortedSignatures) Brotherhoods.push_back(Brotherhood(S,Args.AllCCS));
     while (1)
     {
         Brotherhoods.sort([](Brotherhood & a, Brotherhood &b)-> bool {return a.MinBegin<b.MinBegin;});
@@ -301,7 +299,7 @@ void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signa
         {
             for (list<Brotherhood>::iterator Bi=next(Ai);Bi!=Brotherhoods.end();++Bi)
             {
-                if (Ai->MinBegin+MaxMergeRange<Bi->MinBegin) break;
+                if (Ai->MinBegin+Args.ClusteringMaxMergeRange<Bi->MinBegin) break;
                 if (Ai->merge(*Bi))
                 {
                     Brotherhoods.erase(Bi);
@@ -311,6 +309,35 @@ void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signa
             }
         }
         if (!Next) break;
+    }
+}
+
+void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments &Args)
+{
+    list<Brotherhood> Brotherhoods;
+    if (Args.ThreadN==1 || SortedSignatures.size()<=Args.ClusteringBatchSize*1.1)
+    {
+        for (Signature & S:SortedSignatures) Brotherhoods.push_back(Brotherhood(S,Args.AllCCS));
+        brotherClusteringList(Brotherhoods,Args);
+    }
+    else
+    {
+        vector<list<Brotherhood>> BatchBrotherhoods;
+        for (int i=0;i<SortedSignatures.size();++i)
+        {
+            if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood>());
+            BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood(SortedSignatures[i],Args.AllCCS));
+        }
+        #pragma omp parallel for
+        for (int i=0;i<BatchBrotherhoods.size();++i)
+        {
+            brotherClusteringList(BatchBrotherhoods[i],Args);
+        }
+        for (int i=0;i<BatchBrotherhoods.size();++i)
+        {
+            Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
+        }
+        brotherClusteringList(Brotherhoods,Args);
     }
     for (Brotherhood& B :Brotherhoods)
     {
