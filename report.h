@@ -40,6 +40,10 @@ class VCFHeader
 
 class VCFRecord
 {
+    int SVLen;
+    std::string SVType;
+    int SS;
+    int ST;
     public:
     std::string CHROM;
     int Pos;//0-based reference Pos of the variant, for insertion is the pos after the insertion, otherwise is the 1st base of the variant
@@ -54,6 +58,7 @@ class VCFRecord
     bool Keep;//keep this record
 
     VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
+    void resolveRef(const Contig & TheContig, faidx_t * Ref);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
 };

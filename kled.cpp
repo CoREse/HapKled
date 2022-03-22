@@ -10,6 +10,11 @@
 #include "htslib/htslib/faidx.h"
 #include <algorithm>
 #include "crelib/crelib.h"
+#include <omp.h>
+#include <iterator>
+#include <list>
+#include "ThreadPool.h"
+#include <unordered_map>
 using namespace std;
 using namespace cre;
 
@@ -22,6 +27,9 @@ void sortAndDeDup(vector<Signature> &V)
 		if (V[i]==V[i-1]) V[i].Type=-1;
 	}
 }
+
+#pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
+#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
 Arguments Args;
 int main(int argc, const char* argv[])
@@ -42,6 +50,9 @@ int main(int argc, const char* argv[])
 		OH.showhelp();
 		exit(1);
 	}
+
+	// omp_set_num_threads(8);
+	ThreadPool ThePool(8);
 
 	updateTime("Starting kled, reading reference...");
 	int NSeq;
@@ -162,19 +173,63 @@ int main(int argc, const char* argv[])
 			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],AllStats[i],Args);
 		}
 		updateTime("Clustering","Generating results...");
+		vector<vector<Signature>> SignatureClusters;
+		for (int k=0;k<NumberOfSVType;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
 		vector<VCFRecord> Records;
-		for (int k=0;k<NumberOfSVType;++k)
+		int Times[8]={0,0,0,0,0,0,0,0};
+		// unordered_map<thread::id,vector<VCFRecord>> ThreadRecords;
+		// list<future<vector<VCFRecord>>> ThreadResults;
+		// int BatchSize=100;
+		// for (int j=0;j<SignatureClusters.size();j+=BatchSize)
+		// {
+		// 	// ThreadResults.push_back(ThePool.enqueue([](vector<vector<Signature>> &SignatureClusters,int Start, int End,const Contig & TheContig, faidx_t * Ref, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval) {
+		// 	ThreadResults.push_back(ThePool.enqueue([&]() {
+		// 		// if (ThreadRecords.count(this_thread::get_id())==0) {ThreadRecords[this_thread::get_id()]=vector<VCFRecord>();
+		// 		// fprintf(stderr, "%lu\n", ThreadRecords.hash_function()(this_thread::get_id()));}
+		// 		vector<VCFRecord> Results;
+		// 		for (int ti=j;ti<MIN(j+BatchSize,SignatureClusters.size());++ti)
+		// 		{
+		// 			Results.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[ti],CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+		// 		}
+		// 		return Results;
+		// 	}
+		// 	// SignatureClusters, j, MIN(j+BatchSize,SignatureClusters.size()), Contigs[i], Ref, CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval
+		// 	));
+		// }
+		// for (list<future<vector<VCFRecord>>>::iterator iter=ThreadResults.begin();iter!=ThreadResults.end();++iter)
+		// {
+		// 	vector<VCFRecord> Results=iter->get();
+		// 	fprintf(stderr,"%d\n",Results.size());
+		// 	Records.insert(Records.end(),make_move_iterator(Results.begin()),make_move_iterator(Results.end()));
+		// }
+		// for (unordered_map<thread::id,vector<VCFRecord>>::iterator iter=ThreadRecords.begin();iter!=ThreadRecords.end();++iter)
+		// {
+		// 	fprintf(stderr,"%d\n",iter->second.size());
+		// 	Records.insert(Records.end(),make_move_iterator(iter->second.begin()),make_move_iterator(iter->second.end()));
+		// }
+		// #pragma omp parallel for reduction(RecordVectorConc:Records)
+		for (int j=0;j<SignatureClusters.size();++j)
 		{
-			for (int j=0;j<SignatureTypeClusters[k].size();++j)
-			{
-				Records.push_back(VCFRecord(Contigs[i],Ref,SignatureTypeClusters[k][j],CoverageWindows, WholeCoverage,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
-			}
+			++Times[omp_get_thread_num()];
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j],CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 		}
+		// fprintf(stderr,"Times: %d %d %d %d %d %d %d %d\n",Times[0],Times[1],Times[2],Times[3],Times[4],Times[5],Times[6],Times[7]);
+		// for (vector<VCFRecord>::iterator iter=Records.begin();iter!=Records.end();++iter)
+		// {
+		// 	if (iter->Keep)
+		// 	{
+		// 		KeptRecords.insert(KeptRecords.end(),make_move_iterator(iter),make_move_iterator(iter+1));
+		// 	}
+		// }
+		updateTime("Results generation","Sorting results...");
 		sort(Records.data(),Records.data()+Records.size());
-		updateTime("Results generation","Outputing results...");
-		for (int j=0;j<Records.size();++j)
+		// Records.sort();
+		updateTime("Results sorting","Outputing results...");
+		for (auto r: Records)
 		{
-			if (Records[j].Keep) printf("\n%s",string(Records[j]).c_str());
+			if (!r.Keep) continue;
+			r.resolveRef(Contigs[i],Ref);
+			printf("\n%s",string(r).c_str());
 		}
 		//vector<Variant> ContigVariants;
 		//VariantsByContig.push_back(ContigVariants);

@@ -17,6 +17,7 @@ struct Arguments {
 	int CoverageWindowSize=100;
 	int InsClipTolerance=10;
 	int InsMaxGapSize=50000;
+	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	bool AllCCS=false;
 	double ASSBases[2]={10,3};//Layers of base filter scores, for average supporting scores(number of templates and signatures)
 	double ASSCoverageMulti[2]={0.5,0.3};

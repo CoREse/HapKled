@@ -1,7 +1,7 @@
 CC=g++
 AR=ar
 #CPPFLAGS= -Wall -g -Lhtslib -lhts -Lcrelib -lcre optutils/opthelper.a --std=c++17
-CPPFLAGS= -Wall -g --std=c++17
+CPPFLAGS= -Wall -g --std=c++17 -fopenmp
 LDFLAGS=-lz -lm -lbz2 -llzma -lpthread
 LIBS=
 PYTHON=python3.8

@@ -10,6 +10,7 @@
 #include <numeric>
 #include "defines.h"
 #include <stdio.h>
+#include <iterator>
 
 using namespace std;
 
@@ -378,6 +379,25 @@ string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageW
     return "0/1";
 }
 
+void resizeCluster(vector<Signature> &Cluster, int MaxSize)
+{
+    if (Cluster.size()<=MaxSize) return;
+    int NewBegin=Cluster.size()/2-(MaxSize/2);
+    int NewEnd=NewBegin+MaxSize;
+    Cluster.insert(Cluster.begin(),make_move_iterator(vector<Signature>::iterator(&Cluster[NewBegin])),make_move_iterator(vector<Signature>::iterator(&Cluster[NewEnd])));
+    Cluster.resize(MaxSize);
+    // if (Cluster.size()<=2*MaxSize) return;
+    // int Step=Cluster.size()/MaxSize;
+    // auto InitialFirst=Cluster.begin();
+    // int NewSize=0;
+    // for (int i=0;i<Cluster.size();i+=Step)
+    // {
+    //     Cluster.insert(vector<Signature>::iterator(&Cluster[NewSize]),make_move_iterator(vector<Signature>::iterator(&Cluster[i])),make_move_iterator(i<Cluster.size()?vector<Signature>::iterator(&Cluster[i+1]):Cluster.end()));
+    //     ++NewSize;
+    // }
+    // Cluster.resize(NewSize);
+}
+
 int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
@@ -390,7 +410,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     // printf("\n");
     // return;
     assert(SignatureCluster.size()>=0);
-    int SS,ST;
+    // if (SignatureCluster.size()>Args.MaxClusterSize) SignatureCluster=resizeCluster(SignatureCluster,Args.MaxClusterSize);
+    SS,ST;
     // printf("%d, ",SignatureCluster.size());
     // for (int i=0;i<SignatureCluster.size();++i)
     // {
@@ -399,11 +420,12 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     // }
     // printf("\n");
     // return;
+    resizeCluster(SignatureCluster,Args.MaxClusterSize);
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
-    string SVType=getSVType(SignatureCluster);
+    SVType=getSVType(SignatureCluster);
     tuple<int,int> Site=analyzeSignatureCluster(SignatureCluster);
-    int SVLen=get<1>(Site);
+    SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
     //VCF version 4.2 says if alt is <ID>, the pos is the base preceding the polymorphism. No mention of the "base 1" rule.
     #ifdef CUTE_VER
@@ -501,6 +523,21 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             }
         }
     }
+    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
+   
+    INFO+="SCORES="+to_string(int(Scores[0]));
+    for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
+    //extern int VN;
+    //ID="kled."+SVType+"."+to_string(VN);
+    //++VN;
+    ID=".";
+    QUAL=".";
+    FILTER="PASS";
+    CHROM=TheContig.Name;
+}
+
+void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
+{
     int TLen;
     int End;
     bool OutTag=true;
@@ -554,17 +591,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
         }
     }
     ++Pos;++End;//trans to 1-based
-    INFO="PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST);
-    INFO+=";SCORES="+to_string(int(Scores[0]));
-    for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
-    //extern int VN;
-    //ID="kled."+SVType+"."+to_string(VN);
-    //++VN;
-    ID=".";
-    QUAL=".";
-    FILTER="PASS";
-    CHROM=TheContig.Name;
-    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
+    INFO+=";PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST);
 }
 
 VCFRecord::operator std::string() const
