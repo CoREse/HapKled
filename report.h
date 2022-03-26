@@ -44,6 +44,7 @@ class VCFRecord
     std::string SVType;
     int SS;
     int ST;
+    std::string InsConsensus;
     public:
     std::string CHROM;
     int Pos;//0-based reference Pos of the variant, for insertion is the pos after the insertion, otherwise is the 1st base of the variant

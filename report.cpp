@@ -223,7 +223,7 @@ double getAverageCoverage(int Begin, int End, double * CoverageWindows, Argument
     double Cov=0;
     int WBegin=Begin/Args.CoverageWindowSize;
     int WEnd=End/Args.CoverageWindowSize+1;
-    if (CoverageWindowsSums!=NULL)
+    if (false and CoverageWindowsSums!=NULL)//buggy, guess related to checkpoint memory access cross boundary
     {
         if ((WBegin/CheckPointInterval+1)*CheckPointInterval>WEnd)
         {
@@ -398,6 +398,62 @@ void resizeCluster(vector<Signature> &Cluster, int MaxSize)
     // Cluster.resize(NewSize);
 }
 
+const short Alphabet[128]={//NATGC=01234
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,1,0,4,0,0,0,3,0,0,0,0,0,0,0,0,
+    0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,
+    0,1,0,4,0,0,0,3,0,0,0,0,0,0,0,0,
+    0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0
+};
+const char * Betalpha="NATGC";
+string getInsConsensus(int SVLen, vector<Signature> & SignatureCluster, double Endurance=0.01)
+{
+    char Consensus[SVLen+1];
+    Consensus[0]='\0';
+    int Counts[5];
+    int ConsensusCount=0;
+    // for (int i=0;i<SignatureCluster.size();++i)
+    // {
+    //     if (abs(int(SignatureCluster[i].InsBases.length())-SVLen)<=SVLen*Endurance) ++ConsensusCount;
+    // }
+    if (ConsensusCount==0)
+    {
+        for (int i=0;i<SignatureCluster.size();++i)
+        {
+            if (SignatureCluster[i].InsBases.length()>=SVLen)
+            {
+                strcpy(Consensus,SignatureCluster[i].InsBases.substr(0,SVLen).c_str());
+                break;
+            }
+        }
+    }
+    else
+    {
+        for (int i=0;i<SVLen;++i)
+        {
+            for (int j=0;j<5;++j) Counts[j]=0;
+            for (int j=0;j<SignatureCluster.size();++j)
+            {
+                if (abs(int(SignatureCluster[j].InsBases.length())-SVLen)>SVLen*Endurance) continue;
+                // if (SignatureCluster[j].Length!=SignatureCluster[j].InsBases.length()) fprintf(stderr,"warning! not the same!%d,%d\n",SignatureCluster[j].Length,SignatureCluster[j].InsBases.length());
+                ++Counts[
+                    Alphabet[
+                        SignatureCluster[j].InsBases[(int)(((double)i)/((double)SVLen)*SignatureCluster[j].InsBases.length())]
+                        ]
+                    ];
+            }
+            int MaxI=0;
+            for (int j=1;j<5;++j) if (Counts[MaxI]<Counts[j]) MaxI=j;
+            Consensus[i]=Betalpha[MaxI];
+        }
+    }
+    Consensus[SVLen]='\0';
+    return Consensus;
+}
+
 int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
@@ -448,7 +504,6 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     }
     Pos=llPos/SignatureCluster.size();
     SVLen=llSVLen/SignatureCluster.size();
-
     
     vector<double> Scores=scoring(SignatureCluster,SVLen);
     double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
@@ -523,6 +578,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             }
         }
     }
+    InsConsensus=getInsConsensus(SVLen,SignatureCluster);
+
     Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
    
     INFO+="SCORES="+to_string(int(Scores[0]));
@@ -540,56 +597,88 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
 {
     int TLen;
     int End;
-    bool OutTag=true;
-    if (SVLen>10000) OutTag=true;
+    bool OutTag=false;
+    if (SVLen>1000000) OutTag=true;
+    //According to VCF v4.2, Pos should be 1 base before the event, unless event happens at the 1st pos, then ref should contain the base after the event
+    //End should contain the last base, and either pos is 1 base before the event or ref contains 1 base after the event, End is always Pos+SVLen (excpet for SVs like INS)
+    if (Pos!=0) --Pos;
+    if (SVType=="INS") End=Pos;
+    else End=Pos+SVLen;//End should contain the last base, but 
+    char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,End,&TLen);
     if (OutTag)
     {
-        if (Pos==0)
-        {
-            Pos=SVLen;
-            End=Pos-1;
-            char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
-            REF=TSeq[0];
-            free(TSeq);
-            ALT="<"+SVType+">"+REF;
-        }
-        else
-        {
-            --Pos;//base before variant
-            End=Pos+SVLen;
-            char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
-            REF=TSeq[0];
-            free(TSeq);
-            ALT="<"+SVType+">";
-        }
+        // if (Pos==0) REF=TSeq[End-Pos];
+        REF=TSeq[0];
+        // if (Pos==0) ALT="<"+SVType+">"+REF;
+        ALT="<"+SVType+">";//as described in VCF v4.2 example, no need to add ref
     }
     else
     {
-        if (Pos==0)
+        REF=TSeq;
+        if (SVType=="DEL")
         {
-            Pos=SVLen;
-            End=Pos-1;
-            char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),0,Pos,&TLen);
-            REF=string(TSeq);
-            free(TSeq);
-            if (SVType=="DEL")
-                ALT=REF[Pos];
-            else
-                ALT="<"+SVType+">"+REF[Pos];
+            // if (Pos==0) ALT="<DEL>"+REF[REF.length()-1];
+            ALT=REF[0];
+        }
+        else if (SVType=="INS")
+        {
+            if (InsConsensus=="") ALT="<INS>";
+            else ALT=REF[0]+InsConsensus;
         }
         else
         {
-            --Pos;//base before variant
-            End=Pos+SVLen;
-            char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos-1,End,&TLen);
-            REF=TSeq;
-            free(TSeq);
-            if (SVType=="DEL")
-                ALT=REF[0];
-            else
-                ALT="<"+SVType+">";
+            ALT="<"+SVType+">";
         }
     }
+    free(TSeq);
+    // if (OutTag)
+    // {
+    //     if (Pos==0)
+    //     {
+    //         Pos=SVLen;
+    //         End=Pos-1;
+    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
+    //         REF=TSeq[0];
+    //         free(TSeq);
+    //         ALT="<"+SVType+">"+REF;
+    //     }
+    //     else
+    //     {
+    //         --Pos;//base before variant
+    //         End=Pos+SVLen;
+    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
+    //         REF=TSeq[0];
+    //         free(TSeq);
+    //         ALT="<"+SVType+">";
+    //     }
+    // }
+    // else
+    // {
+    //     if (Pos==0)
+    //     {
+    //         Pos=SVLen;
+    //         End=Pos-1;
+    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),0,Pos,&TLen);
+    //         REF=string(TSeq);
+    //         free(TSeq);
+    //         if (SVType=="DEL")
+    //             ALT=REF[Pos];
+    //         else
+    //             ALT="<"+SVType+">"+REF[Pos];
+    //     }
+    //     else
+    //     {
+    //         --Pos;//base before variant
+    //         End=Pos+SVLen;
+    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos-1,End,&TLen);
+    //         REF=TSeq;
+    //         free(TSeq);
+    //         if (SVType=="DEL")
+    //             ALT=REF[0];
+    //         else
+    //             ALT="<"+SVType+">";
+    //     }
+    // }
     ++Pos;++End;//trans to 1-based
     INFO+=";PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST);
 }

@@ -4,6 +4,7 @@
 #include <vector>
 
 struct Arguments {
+	int TestN=0;
 	const char * ReferenceFileName=0;
 	std::vector<const char *> BamFileNames;
 	std::vector<const char *> CallingContigs;

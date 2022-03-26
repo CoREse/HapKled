@@ -19,13 +19,14 @@ class Signature
     int SupportedSV;//0: DEL, 1: INS, 2: DUP
     static const char* SVTypeNames[];
     std::string TemplateName;
+    std::string InsBases;
     //unsigned long long ReadNum;//indicate the signature is from ReadNum-th read this software reads in this contig, count by primary alignment.
     int Begin, End;//0-based, for insertions, end is just for SVLen calculation and clustering convinience.
     int CN;//default -1, 0 for del, >1 for dup if known
     std::vector<Segment> Segments;
     int Length;
     Signature();
-    Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName);
+    Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, const char * InsBases="");
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, Segment Read1, Segment Read2, int Length);//for drp Signatures
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, std::vector<Segment> Segments);//for Split reads signatures
     void setCN(int CN);

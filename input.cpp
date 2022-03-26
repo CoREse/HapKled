@@ -171,10 +171,10 @@ int getReadLength(uint32_t CIGARN, uint32_t* CIGARD)//included hard clip
 		--N;
 		Clipped+=bam_cigar_oplen(CIGARD[0]);
 	}
-	if (bam_cigar_op(CIGARD[CIGARN])==BAM_CSOFT_CLIP || bam_cigar_op(CIGARD[CIGARN])==BAM_CHARD_CLIP)
+	if (bam_cigar_op(CIGARD[CIGARN-1])==BAM_CSOFT_CLIP || bam_cigar_op(CIGARD[CIGARN-1])==BAM_CHARD_CLIP)
 	{
 		--N;
-		Clipped+=bam_cigar_oplen(CIGARD[CIGARN]);
+		Clipped+=bam_cigar_oplen(CIGARD[CIGARN-1]);
 	}
 	return bam_cigar2qlen(N,CIGARD+Start)+Clipped;
 }
@@ -341,8 +341,9 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		statCoverageCigar(br,CoverageWindows,TheContig,Args);
 		return;
 	}
-	int SACharLen=strlen(SA_tag_char)+1;
-	char SATag[SACharLen];
+	// printf("name:%s; SA:%s;\n",bam_get_qname(br),SA_tag_char);
+	int SACharLen=strlen(SA_tag_char);
+	char SATag[SACharLen+1];
 	strcpy(SATag,SA_tag_char);
 	for (int i=0;i<SACharLen;++i) if (SATag[i]==',' || SATag[i]==';') SATag[i]='\0';
 	int k=0;
@@ -379,9 +380,10 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		}
 		k+=1;
 	}
-	sort(Aligns.data(),Aligns.data()+Aligns.size());
+	// sort(Aligns.data(),Aligns.data()+Aligns.size());
 	// printf("name:%s; size:%lu;",bam_get_qname(br),Aligns.size());
-	// // for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
+	// printf("name:%s; %d,%d,%d;",bam_get_qname(br),Aligns[0].Strand,Aligns[0].Pos,Aligns[0].Length);
+	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
 	for (int i=0;i<Aligns.size();++i) statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
@@ -403,7 +405,7 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature> *TypeSig
 		}
 	}
 }
-
+const char * BamBases="NACNGNNNTNNNNNNN";
 void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
 	if (br->core.qual<Args.MinMappingQuality) return;
@@ -412,6 +414,9 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	uint32_t * cigars=bam_get_cigar(br);
 	int CurrentStart=-1, CurrentLength=0;
 	int Begin=br->core.pos;
+	int QueryBegin=0;
+	int CurrentQueryStart=QueryBegin;
+	string Allele;
 	//int MergeDis=500;
 	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
@@ -426,20 +431,39 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 			{
 				CurrentStart=Begin;
 				CurrentLength=qlen;
+				CurrentQueryStart=QueryBegin;
+				Allele="";
 			}
 			else
 			{
 				if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 				{
-					if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+					// int QueryLength=QueryBegin-CurrentQueryStart;
+					// char InsBases[QueryLength+1];
+					// // InsBases[0]='\0';
+					// for (int j=0;j<QueryLength;++j)
+					// {
+					// 	InsBases[j]=BamBases[bam_seqi(bam_get_seq(br),CurrentQueryStart+j)];
+					// }
+					// InsBases[QueryLength]='\0';
+					// if (Args.TestN==0)
+					// {if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),InsBases));}
+					// else
+					if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Allele.c_str()));
 					// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 					CurrentStart=Begin;
 					CurrentLength=qlen;
+					CurrentQueryStart=QueryBegin;
+					Allele="";
 				}
 				else
 				{
 					CurrentLength+=qlen;
 				}
+			}
+			for (int j=0;j<qlen;++j)
+			{
+				Allele+=BamBases[bam_seqi(bam_get_seq(br),QueryBegin+j)];
 			}
 		}
 		// if (bam_cigar_op(cigars[i])==BAM_CINS)
@@ -451,11 +475,23 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 		// 	}
 		// }
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==1||bam_cigar_op(cigars[i])==4||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) QueryBegin+=bam_cigar_oplen(cigars[i]);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
 	}
 	if (CurrentStart!=-1)
 	{
-		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
+		// int QueryLength=QueryBegin-CurrentQueryStart;
+		// char InsBases[QueryLength+1];
+		// // InsBases[0]='\0';
+		// for (int j=0;j<QueryLength;++j)
+		// {
+		// 	InsBases[j]=BamBases[bam_seqi(bam_get_seq(br),CurrentQueryStart+j)];
+		// }
+		// InsBases[QueryLength]='\0';
+		// if (Args.TestN==0)
+		// {if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),InsBases));}
+		// else
+		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Allele.c_str()));
 				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
 }
@@ -547,6 +583,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 		// 		CurrentLength-=rlen;
 		// 	}
 		// }
+		//Those 4 kinds of op add ref
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
 	}

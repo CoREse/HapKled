@@ -36,6 +36,7 @@ int main(int argc, const char* argv[])
 {
 	bool NoHeader=false;
 	OptHelper OH=OptHelper("kled [Options] Bam1 [Bam2] [Bam3] ...");
+    OH.addOpt('N', 0, 1, "TestNumber", "for test notation",'i',&(Args.TestN));
     OH.addOpt('R', "Ref", 1, "FileName", "Indicate Reference Fasta File(required)",'s',&(Args.ReferenceFileName));
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
@@ -51,8 +52,8 @@ int main(int argc, const char* argv[])
 		exit(1);
 	}
 
-	// omp_set_num_threads(8);
-	ThreadPool ThePool(8);
+	omp_set_num_threads(8);
+	// ThreadPool ThePool(8);
 
 	updateTime("Starting kled, reading reference...");
 	int NSeq;
@@ -115,20 +116,21 @@ int main(int argc, const char* argv[])
 		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
 		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
 		fprintf(stderr,"%ld\n",Contigs[i].Size-1);
-		double *CoverageWindowsSums=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
+		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
 		CoverageWindows[0]=0;
+		// CoverageWindowsSums[0]=0;
 		int CheckPointInterval=10000;
-		double *CheckPoints=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
-		CheckPoints[0]=0;
-		for (int i=1;i<NumberOfCoverageWindows+1;++i)
-		{
-			CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
-			if (i%CheckPointInterval==0)
-			{
-				CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
-				CoverageWindowsSums[i]=0;
-			}
-		}
+		double *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
+		// CheckPoints[0]=0;
+		// for (int i=1;i<NumberOfCoverageWindows+1;++i)
+		// {
+		// 	CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
+		// 	if (i%CheckPointInterval==0)
+		// 	{
+		// 		CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
+		// 		CoverageWindowsSums[i]=0;
+		// 	}
+		// }
 		double WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
 		// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
 		// continue;
@@ -138,10 +140,11 @@ int main(int argc, const char* argv[])
 			printf(Header.genHeader().c_str());
 			FirstBam=false;
 		}
-		int cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0;
+		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0;
 		for (int m=0;m<NumberOfSVType;++m)
 		{
 			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
+			totalsig+=ContigSignatures.size();
 			for (int j=0;j<ContigSignatures.size();++j)
 			{
 				if (ContigSignatures[j].Type==0)
@@ -163,8 +166,8 @@ int main(int argc, const char* argv[])
 				}
 			}
 		}
-		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),ContigTypeSignatures[0].size()+ContigTypeSignatures[2].size(),cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
-		
+		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
+
 		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVType];
 		for (int k=0;k<NumberOfSVType;++k)
@@ -176,7 +179,7 @@ int main(int argc, const char* argv[])
 		vector<vector<Signature>> SignatureClusters;
 		for (int k=0;k<NumberOfSVType;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
 		vector<VCFRecord> Records;
-		int Times[8]={0,0,0,0,0,0,0,0};
+		// int Times[8]={0,0,0,0,0,0,0,0};
 		// unordered_map<thread::id,vector<VCFRecord>> ThreadRecords;
 		// list<future<vector<VCFRecord>>> ThreadResults;
 		// int BatchSize=100;
@@ -207,10 +210,10 @@ int main(int argc, const char* argv[])
 		// 	fprintf(stderr,"%d\n",iter->second.size());
 		// 	Records.insert(Records.end(),make_move_iterator(iter->second.begin()),make_move_iterator(iter->second.end()));
 		// }
-		// #pragma omp parallel for reduction(RecordVectorConc:Records)
+		#pragma omp parallel for reduction(RecordVectorConc:Records)
 		for (int j=0;j<SignatureClusters.size();++j)
 		{
-			++Times[omp_get_thread_num()];
+			// ++Times[omp_get_thread_num()];
 			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j],CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 		}
 		// fprintf(stderr,"Times: %d %d %d %d %d %d %d %d\n",Times[0],Times[1],Times[2],Times[3],Times[4],Times[5],Times[6],Times[7]);
@@ -235,8 +238,8 @@ int main(int argc, const char* argv[])
 		//VariantsByContig.push_back(ContigVariants);
 		//callVariants(Contigs[i],VariantsByContig[VariantsByContig.size()-1],ContigSignatures,Args);
 		delete CoverageWindows;
-		free(CoverageWindowsSums);
-		free(CheckPoints);
+		// free(CoverageWindowsSums);
+		// free(CheckPoints);
 	}
 
 	//report(VariantsByContig);
