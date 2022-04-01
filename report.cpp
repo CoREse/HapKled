@@ -217,6 +217,12 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     return Scores;
 }
 
+int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen)
+{
+    double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    return MAX(0.0,100.0-(LengthSD/(double)SVLen*100.0));
+}
+
 double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums, double* CheckPoints, int CheckPointInterval)
 {
     if (End<=Begin) return -1;
@@ -270,19 +276,20 @@ bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
         SupportTemps.insert(SignatureCluster[i].TemplateName);
     }
     ST=SupportTemps.size();
-    if (ST>=1) return true;
-    return false;
-    double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
-    // if (ST>=12 && LengthSD<20) return true;
-    if (ST>=10 && LengthSD<10) return true;
-    if (ST>=5 && LengthSD<5 ) return true;
-    set<int> Sources;
-    for (int i =0;i<SignatureCluster.size();++i)
-    {
-        if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
-    }
-    // if (ST>=3 && LengthSD<5 && Sources.size()>1) return true;
-    return false;
+    return true;
+    // if (ST>=1) return true;
+    // return false;
+    // double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    // // if (ST>=12 && LengthSD<20) return true;
+    // if (ST>=10 && LengthSD<10) return true;
+    // if (ST>=5 && LengthSD<5 ) return true;
+    // set<int> Sources;
+    // for (int i =0;i<SignatureCluster.size();++i)
+    // {
+    //     if (SignatureCluster[i].Type!=-1) Sources.insert(SignatureCluster[i].Type);
+    // }
+    // // if (ST>=3 && LengthSD<5 && Sources.size()>1) return true;
+    // return false;
 }
 
 bool isClipOnly(vector<Signature> & Cluster)
@@ -467,7 +474,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     // return;
     assert(SignatureCluster.size()>=0);
     // if (SignatureCluster.size()>Args.MaxClusterSize) SignatureCluster=resizeCluster(SignatureCluster,Args.MaxClusterSize);
-    SS,ST;
+    // SS,ST;
     // printf("%d, ",SignatureCluster.size());
     // for (int i=0;i<SignatureCluster.size();++i)
     // {
@@ -480,6 +487,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
     SVType=getSVType(SignatureCluster);
+    int SVTypeI=SignatureCluster[0].SupportedSV;
     tuple<int,int> Site=analyzeSignatureCluster(SignatureCluster);
     SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
@@ -505,85 +513,63 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     Pos=llPos/SignatureCluster.size();
     SVLen=llSVLen/SignatureCluster.size();
     
+    LS=getLengthSDRatioScore(SignatureCluster,SVLen);
+    
     vector<double> Scores=scoring(SignatureCluster,SVLen);
     double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
     double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
     double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
     // if (Score<60) {Keep=false;return;}
     // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
+    // if ((100.0-Scores[4])!=2.0*(100.0-LS)) fprintf(stderr,"%lf %lf, %lf %lf\n",Scores[4],LS,(100.0-Scores[4]),2.0*(100.0-LS));
     if (Args.AllCCS)
     {
-        if (SVType=="INS")
-        {
-            if (Scores[0]>=Args.CCSInsASSBases[0]+WholeCoverage*Args.CCSInsASSCoverageMulti[0] && Scores[4]>=Args.CCSInsLSDRSs[0]) {Keep=true;}
-            else
-            {
-                // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
-                if (Scores[0]<Args.CCSInsASSBases[1]+WholeCoverage*Args.CCSInsASSCoverageMulti[1]) {Keep=false;return;}
-                if (Scores[4]<Args.CCSInsLSDRSs[1]) {Keep=false;return;}
-            }
-        }
+        if (SS+ST>=Args.CCSASSBases[SVTypeI][0]+WholeCoverage*Args.CCSASSCoverageMulti[SVTypeI][0] && LS>=Args.CCSLSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
-            if (Scores[0]>=Args.CCSASSBases[0]+WholeCoverage*Args.CCSASSCoverageMulti[0] && Scores[4]>=Args.CCSLSDRSs[0]) {Keep=true;}
-            else
-            {
-                if (Scores[0]<Args.CCSASSBases[1]+WholeCoverage*Args.CCSASSCoverageMulti[1]) {Keep=false;return;}
-                // if (Scores[1]<95) {Keep=false;return;}
-                if (Scores[4]<Args.CCSLSDRSs[1]) {Keep=false;return;}
-            }
+            if (SS+ST<Args.CCSASSBases[SVTypeI][1]+WholeCoverage*Args.CCSASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+            // if (Scores[1]<95) {Keep=false;return;}
+            if (LS<Args.CCSLSDRSs[SVTypeI][1]) {Keep=false;return;}
         }
     }
     else
     {
-        if (SVType=="INS")
-        {
-            if (Scores[0]>=Args.InsASSBases[0]+WholeCoverage*Args.InsASSCoverageMulti[0] && Scores[4]>=Args.InsLSDRSs[0]) {Keep=true;}
-            else
-            {
-                // if (isClipOnly(SignatureCluster)) {Keep=false;return;}
-                if (Scores[0]<Args.InsASSBases[1]+WholeCoverage*Args.InsASSCoverageMulti[1]) {Keep=false;return;}
-                if (Scores[4]<Args.InsLSDRSs[1]) {Keep=false;return;}
-            }
-        }
+        if (SVType=="DUP") if (SS-ST>ST) {Keep=false;return;}
+        if (SS+ST>=Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0] && LS>=Args.LSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
-            if (Scores[0]>=Args.ASSBases[0]+WholeCoverage*Args.ASSCoverageMulti[0] && Scores[4]>=Args.LSDRSs[0]) {Keep=true;}
-            else
-            {
-                if (Scores[0]<Args.ASSBases[1]+WholeCoverage*Args.ASSCoverageMulti[1]) {Keep=false;return;}
-                // if (Scores[1]<95) {Keep=false;return;}
-                if (Scores[4]<Args.LSDRSs[1]) {Keep=false;return;}
-                // if (abs(SVLen)>10000)
-                // {
-                //     double BeforeCovergae=-1;
-                //     if (Pos>10000) BeforeCovergae=getAverageCoverage(Pos-10000,Pos,CoverageWindows,Args);
-                //     double AfterCoverage=-1;
-                //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAverageCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
-                //     double Ambient=0;
-                //     double Valid=0;
-                //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
-                //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
-                //     if (Valid!=0) Ambient/=Valid;
-                //     if (Ambient!=0)
-                //     {
-                //         double Center=getAverageCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
-                //         if (Center>Ambient*0.6) {Keep=false;return;}
-                //     }
-                // }
-                // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
-                // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
-                // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
-                // else {Keep=false;return;}
-            }
+            if (SS+ST<Args.ASSBases[SVTypeI][1]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+            // if (Scores[1]<95) {Keep=false;return;}
+            if (LS<Args.LSDRSs[SVTypeI][1]) {Keep=false;return;}
+            // if (abs(SVLen)>10000)
+            // {
+            //     double BeforeCovergae=-1;
+            //     if (Pos>10000) BeforeCovergae=getAverageCoverage(Pos-10000,Pos,CoverageWindows,Args);
+            //     double AfterCoverage=-1;
+            //     if (Pos+abs(SVLen)<TheContig.Size-10000) AfterCoverage=getAverageCoverage(Pos+abs(SVLen),Pos+abs(SVLen)+10000,CoverageWindows,Args);
+            //     double Ambient=0;
+            //     double Valid=0;
+            //     if (BeforeCovergae!=-1) {Valid+=1;Ambient+=BeforeCovergae;}
+            //     if (AfterCoverage!=-1) {Valid+=1;Ambient+=AfterCoverage;}
+            //     if (Valid!=0) Ambient/=Valid;
+            //     if (Ambient!=0)
+            //     {
+            //         double Center=getAverageCoverage(Pos+abs(SVLen)/4.0,Pos+abs(SVLen)*0.75,CoverageWindows,Args);
+            //         if (Center>Ambient*0.6) {Keep=false;return;}
+            //     }
+            // }
+            // if (abs(SVLen)>5000 && AmbientCoverage>WholeCoverage*1.0) {Keep=false;return;}
+            // else if (Scores[0]>=10 && (Scores[2]+Scores[3]+Scores[4])>=240) Keep=true;
+            // else if (Scores[0]>=6 && ((Scores[2]+Scores[3])>=190 || (Scores[2]+Scores[4])>=190 || (Scores[3]+Scores[4])>=190 )) Keep=true;
+            // else {Keep=false;return;}
         }
     }
     InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
     Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
    
-    INFO+="SCORES="+to_string(int(Scores[0]));
-    for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
+    // INFO+="SCORES="+to_string(int(Scores[0]));
+    // for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
     //extern int VN;
     //ID="kled."+SVType+"."+to_string(VN);
     //++VN;
@@ -614,7 +600,8 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     }
     else
     {
-        REF=TSeq;
+        if (SVType=="DUP") REF=TSeq[0];
+        else REF=TSeq;
         if (SVType=="DEL")
         {
             // if (Pos==0) ALT="<DEL>"+REF[REF.length()-1];
@@ -680,7 +667,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     //     }
     // }
     ++Pos;++End;//trans to 1-based
-    INFO+=";PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST);
+    INFO+="PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
 }
 
 VCFRecord::operator std::string() const
@@ -769,8 +756,9 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","IMPRECISE","Imprecise structural variant","0","Flag"));
     Header.addHeaderEntry(HeaderEntry("INFO","SS","Number of supported signatures","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","ST","Number of supported templates","1","Integer"));
+    Header.addHeaderEntry(HeaderEntry("INFO","LS","Length SD ratio score (100-ratio*100) of the cluster.","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));
     Header.addHeaderEntry(HeaderEntry("FORMAT","GT","Genotype","1","String"));
-    Header.addHeaderEntry(HeaderEntry("INFO","SCORES","Scores, supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source","6","Integer"));
+    // Header.addHeaderEntry(HeaderEntry("INFO","SCORES","Scores, supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source","6","Integer"));
 }

@@ -1,7 +1,10 @@
+#pragma once
 #ifndef KLED_KLED_H
 #define KLED_KLED_H
 
 #include <vector>
+
+const int NumberOfSVTypes=3;//Default is static so is fine.
 
 struct Arguments {
 	int TestN=0;
@@ -22,18 +25,31 @@ struct Arguments {
 	int ClusteringMaxMergeRange=20000;
 	int ClusteringBatchSize=10000;
 	bool AllCCS=false;
-	double ASSBases[2]={10,3};//Layers of base filter scores, for average supporting scores(number of templates and signatures)
-	double ASSCoverageMulti[2]={0.5,0.3};
-	double LSDRSs[2]={0, 60};//For Legnth Standard Deviation Ratio Scores
-	double InsASSBases[2]={10,1};
-	double InsASSCoverageMulti[2]={0.5,0.3};
-	double InsLSDRSs[2]={10, 60};
-	double CCSASSBases[2]={10,3};//Layers of base filter scores, for average supporting scores(number of templates and signatures)
-	double CCSASSCoverageMulti[2]={0.5,0.1};
-	double CCSLSDRSs[2]={0, 60};//For Legnth Standard Deviation Ratio Scores
-	double CCSInsASSBases[2]={5,1};
-	double CCSInsASSCoverageMulti[2]={0.3,0.2};
-	double CCSInsLSDRSs[2]={10, 60};
+	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
+	{{10,3}//DEL
+	,{10,1}//INS
+	,{20,2}};//DUP
+	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.3},
+	{0.5,0.3},
+	{0.5,0.3}};
+	double LSDRSs[NumberOfSVTypes][2]={{0, 80},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{55,80},
+	{60,90}};
+	// double InsASSBases[2]={10,1};
+	// double InsASSCoverageMulti[2]={0.5,0.3};
+	// double InsLSDRSs[2]={55, 80};
+	double CCSASSBases[NumberOfSVTypes][2]={{10,3},
+	{5,1},
+	{10,3}};//Need further polish
+	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.1},
+	{0.3,0.2},
+	{0.5,0.1}};
+	double CCSLSDRSs[NumberOfSVTypes][2]={{0, 80},
+	{55,80},
+	{0,80}};
+	// double CCSInsASSBases[2]={5,1};
+	// double CCSInsASSCoverageMulti[2]={0.3,0.2};
+	// double CCSInsLSDRSs[2]={55, 80};
 };
 
 #endif

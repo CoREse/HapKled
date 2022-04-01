@@ -108,8 +108,7 @@ int main(int argc, const char* argv[])
 			if (!ToCall) continue;
 		}
 		updateTime("","Calling...");
-		int NumberOfSVType=3;
-		vector<Signature> ContigTypeSignatures[NumberOfSVType];//For supported SV type
+		vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 		double *CoverageWindows=new double[NumberOfCoverageWindows];
@@ -141,7 +140,7 @@ int main(int argc, const char* argv[])
 			FirstBam=false;
 		}
 		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0;
-		for (int m=0;m<NumberOfSVType;++m)
+		for (int m=0;m<NumberOfSVTypes;++m)
 		{
 			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
 			totalsig+=ContigSignatures.size();
@@ -169,15 +168,15 @@ int main(int argc, const char* argv[])
 		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
 
 		updateTime("Getting signatures","Clustering...");
-		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVType];
-		for (int k=0;k<NumberOfSVType;++k)
+		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
+		for (int k=0;k<NumberOfSVTypes;++k)
 		{
 			sortAndDeDup(ContigTypeSignatures[k]);
 			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],AllStats[i],Args);
 		}
 		updateTime("Clustering","Generating results...");
 		vector<vector<Signature>> SignatureClusters;
-		for (int k=0;k<NumberOfSVType;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
+		for (int k=0;k<NumberOfSVTypes;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
 		vector<VCFRecord> Records;
 		// int Times[8]={0,0,0,0,0,0,0,0};
 		// unordered_map<thread::id,vector<VCFRecord>> ThreadRecords;

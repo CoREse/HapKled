@@ -44,6 +44,7 @@ class VCFRecord
     std::string SVType;
     int SS;
     int ST;
+    int LS;
     std::string InsConsensus;
     public:
     std::string CHROM;
