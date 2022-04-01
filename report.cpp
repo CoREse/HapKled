@@ -217,9 +217,10 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     return Scores;
 }
 
-int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen)
+int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen, double * SD=NULL)
 {
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+    if (SD!=NULL) *SD=LengthSD;
     return MAX(0.0,100.0-(LengthSD/(double)SVLen*100.0));
 }
 
@@ -513,11 +514,15 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     Pos=llPos/SignatureCluster.size();
     SVLen=llSVLen/SignatureCluster.size();
     
-    LS=getLengthSDRatioScore(SignatureCluster,SVLen);
+    double LengthSD;
+    LS=getLengthSDRatioScore(SignatureCluster,SVLen,&LengthSD);
+
+    if (ST>=Args.MinimumPreciseTemplates && LengthSD<Args.PreciseStandard && calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard && calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard) Precise=true;
+    else Precise=false;
     
-    vector<double> Scores=scoring(SignatureCluster,SVLen);
-    double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
-    double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
+    // vector<double> Scores=scoring(SignatureCluster,SVLen);
+    // double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
+    // double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
     double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
     // if (Score<60) {Keep=false;return;}
     // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
@@ -667,7 +672,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     //     }
     // }
     ++Pos;++End;//trans to 1-based
-    INFO+="PRECISE;SVTYPE="+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
 }
 
 VCFRecord::operator std::string() const

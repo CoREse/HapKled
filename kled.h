@@ -50,6 +50,8 @@ struct Arguments {
 	// double CCSInsASSBases[2]={5,1};
 	// double CCSInsASSCoverageMulti[2]={0.3,0.2};
 	// double CCSInsLSDRSs[2]={55, 80};
+    double PreciseStandard=3;
+    int MinimumPreciseTemplates=5;
 };
 
 #endif

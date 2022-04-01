@@ -45,6 +45,7 @@ class VCFRecord
     int SS;
     int ST;
     int LS;
+    bool Precise;
     std::string InsConsensus;
     public:
     std::string CHROM;
