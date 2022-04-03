@@ -25,11 +25,14 @@ class Signature
     int CN;//default -1, 0 for del, >1 for dup if known
     std::vector<Segment> Segments;
     int Length;
+    bool InvLeft, InvRight;
     Signature();
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, const char * InsBases="");
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, Segment Read1, Segment Read2, int Length);//for drp Signatures
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, std::vector<Segment> Segments);//for Split reads signatures
     void setCN(int CN);
+    void setInvLeft(bool);
+    void setInvRight(bool);
     bool operator<(const Signature &Other) const;
     bool operator==(const Signature & Other) const;
 };

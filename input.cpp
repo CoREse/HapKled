@@ -266,7 +266,7 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 	for (int i=1;i<Aligns.size();++i)
 	{
 		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
-		vector<Segment> v;
+		// vector<Segment> v;
 		if (Aligns[i].Pos<Aligns[i-1].End)
 		{
 			int Dup=0;
@@ -287,12 +287,45 @@ void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 			}
 			if (Dup)
 			{
-				v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
-				v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
-				Signatures.push_back(Signature(2,Tech,2,Aligns[i].Pos,Aligns[i-1].End,bam_get_qname(br),v));
+				// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
+				// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
+				Signatures.push_back(Signature(2,Tech,2,Aligns[i].Pos,Aligns[i-1].End,bam_get_qname(br)));
 			}
 		}
 		//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
+	}
+}
+
+bool continuous(const Alignment& Former, const Alignment& Latter, unsigned Endurance)
+{
+	return true;
+	if(abs(Latter.Pos-Former.End)<Endurance && abs(Latter.InnerPos-Former.InnerEnd)<Endurance) return true;
+	return false;
+}
+
+void searchInvFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
+{
+	for (int i=1;i<Aligns.size();++i)
+	{
+		if (Aligns[i-1].Strand==Aligns[i].Strand) continue;
+		int InvClipEndurance=1000;
+		if (continuous(Aligns[i-1],Aligns[i],InvClipEndurance))
+		{
+			if (i<Aligns.size()-1 && Aligns[i].Strand!=Aligns[i+1].Strand && continuous(Aligns[i],Aligns[i+1],InvClipEndurance))
+			{
+				Signatures.push_back(Signature(2,Tech,3,Aligns[i].Pos,Aligns[i].End,bam_get_qname(br)));
+				Signatures[Signatures.size()-1].setInvLeft(true);
+				Signatures[Signatures.size()-1].setInvRight(true);
+				++i;
+			}
+			else
+			{
+				Signatures.push_back(Signature(2,Tech,3,Aligns[i-1].Pos,Aligns[i-1].End,bam_get_qname(br)));
+				Signatures[Signatures.size()-1].setInvRight(true);
+				Signatures.push_back(Signature(2,Tech,3,Aligns[i].Pos,Aligns[i].End,bam_get_qname(br)));
+				Signatures[Signatures.size()-1].setInvLeft(true);
+			}
+		}
 	}
 }
 
@@ -390,6 +423,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Args);
 	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Args);
+	searchInvFromAligns(br,Aligns,Tech,TypeSignatures[3], Args);
 }
 
 //This kind of signature should - some normal isize when calc svlen

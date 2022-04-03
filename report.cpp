@@ -539,8 +539,38 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     }
     else
     {
-        if (SVType=="DUP") if (SS-ST>ST) {Keep=false;return;}
-        if (SS+ST>=Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0] && LS>=Args.LSDRSs[SVTypeI][0]) {Keep=true;}
+        if (SVType=="DUP" or SVType=="INV") if (SS-ST>ST) {Keep=false;return;}
+        if (SVType=="INV")
+        {//0.574712643678161 [0, 6, 16, 90, 1, 0, 16, 55],[0, 28, 16, 90, 1, 0, 16, 55],[1, 0, 16, 55, 0, 0, 16, 90]
+            Keep=true;
+            bool HasLeft=false, HasRight=false;
+            for (int i=0;i<SignatureCluster.size();++i)
+            {
+                HasLeft|=SignatureCluster[i].InvLeft;
+                HasRight|=SignatureCluster[i].InvRight;
+            }
+            INFO="LR=";
+            if (HasLeft) INFO+="L";
+            if (HasRight) INFO+="R";
+            if (HasLeft&&HasRight)
+            {
+                if (ST<Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0]) {Keep=false;return;}
+                if (LS<Args.LSDRSs[SVTypeI][0]) {Keep=false;return;}
+            }
+            else
+            {
+                if (ST<Args.ASSBases[SVTypeI][1]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+                if (LS<Args.LSDRSs[SVTypeI][1]) {Keep=false;return;}
+                // if (SS+ST>=10 && LS>=50) {Keep=true;}
+                // else
+                // {
+                //     if (SS+ST<5) {Keep=false;return;}
+                //     // if (Scores[1]<95) {Keep=false;return;}
+                //     if (LS<80) {Keep=false;return;}
+                // }
+            }
+        }
+        else if (SS+ST>=Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0] && LS>=Args.LSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
             if (SS+ST<Args.ASSBases[SVTypeI][1]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
@@ -605,7 +635,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     }
     else
     {
-        if (SVType=="DUP") REF=TSeq[0];
+        if (SVType=="DUP" || SVType=="INV") REF=TSeq[0];
         else REF=TSeq;
         if (SVType=="DEL")
         {
@@ -672,7 +702,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     //     }
     // }
     ++Pos;++End;//trans to 1-based
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
+    INFO+=(Precise?";PRECISE;":";IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
 }
 
 VCFRecord::operator std::string() const
@@ -762,6 +792,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","SS","Number of supported signatures","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","ST","Number of supported templates","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","LS","Length SD ratio score (100-ratio*100) of the cluster.","1","Integer"));
+    Header.addHeaderEntry(HeaderEntry("INFO","LR","L,R,LR","1","String"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));
     Header.addHeaderEntry(HeaderEntry("FORMAT","GT","Genotype","1","String"));

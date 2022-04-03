@@ -4,7 +4,7 @@
 
 #include <vector>
 
-const int NumberOfSVTypes=3;//Default is static so is fine.
+const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
 	int TestN=0;
@@ -24,29 +24,39 @@ struct Arguments {
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	int ClusteringMaxMergeRange=20000;
 	int ClusteringBatchSize=10000;
+    float BrotherhoodTypeRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.5};//For SV Types
+    int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={10,50,500,100};
+    float BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,2.0,2.0};//For SV Types
+    int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,100,100};
 	bool AllCCS=false;
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{10,3}//DEL
 	,{10,1}//INS
-	,{20,2}};//DUP
+	,{20,2}//DUP
+	,{1,1}};//INV, only ST no SS
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.3},
 	{0.5,0.3},
-	{0.5,0.3}};
+	{0.5,0.3},
+	{0.5,0.5}};
 	double LSDRSs[NumberOfSVTypes][2]={{0, 80},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{55,80},
-	{60,90}};
+	{60,90},
+	{55,90}};
 	// double InsASSBases[2]={10,1};
 	// double InsASSCoverageMulti[2]={0.5,0.3};
 	// double InsLSDRSs[2]={55, 80};
 	double CCSASSBases[NumberOfSVTypes][2]={{10,3},
 	{5,1},
-	{10,3}};//Need further polish
+	{10,3},//Need further polish
+	{1,1}};//Need further polish
 	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.1},
 	{0.3,0.2},
-	{0.5,0.1}};
+	{0.5,0.1},
+	{0.5,0.5}};
 	double CCSLSDRSs[NumberOfSVTypes][2]={{0, 80},
 	{55,80},
-	{0,80}};
+	{0,80},
+	{55,90}};
 	// double CCSInsASSBases[2]={5,1};
 	// double CCSInsASSCoverageMulti[2]={0.3,0.2};
 	// double CCSInsLSDRSs[2]={55, 80};

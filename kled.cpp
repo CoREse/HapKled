@@ -139,7 +139,7 @@ int main(int argc, const char* argv[])
 			printf(Header.genHeader().c_str());
 			FirstBam=false;
 		}
-		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0;
+		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0;
 		for (int m=0;m<NumberOfSVTypes;++m)
 		{
 			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
@@ -162,10 +162,11 @@ int main(int argc, const char* argv[])
 					if (ContigSignatures[j].SupportedSV==0) ++clipdel;
 					if (ContigSignatures[j].SupportedSV==1) ++clipins;
 					if (ContigSignatures[j].SupportedSV==2) ++clipdup;
+					if (ContigSignatures[j].SupportedSV==3) ++clipinv;
 				}
 			}
 		}
-		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, Contigs[i].Size, WholeCoverage);
+		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, Contigs[i].Size, WholeCoverage);
 
 		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];

@@ -224,6 +224,46 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
 
 bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int ForceBrother=5)
 {
+    // if (SupportedSV==3)//Inv
+    // {
+    //     if (A.InvLeft && B.InvLeft && A.InvRight && B.InvRight) return isBrother(A,B,0,Ratio,ForceBrother);
+    //     if (A.InvLeft && B.InvLeft)
+    //     {
+    //         if ((!A.InvRight) && (!B.InvRight))
+    //         {
+    //             if (abs(A.Begin-B.Begin)<=ForceBrother) return true;
+    //             return false;
+    //         }
+    //         else if (!A.InvRight)
+    //         {
+    //             if (abs(A.Begin-B.Begin)<=ForceBrother && (abs(A.End-B.End)<=ForceBrother || B.Length>=A.Length)) return true;
+    //             return false;
+    //         }
+    //         else if (!B.InvRight)
+    //         {
+    //             if (abs(A.Begin-B.Begin)<=ForceBrother && (abs(A.End-B.End)<=ForceBrother || A.Length>=B.Length)) return true;
+    //             return false;
+    //         }
+    //     }
+    //     if (A.InvRight && B.InvRight)
+    //     {
+    //         if ((!A.InvLeft) && (!B.InvLeft))
+    //         {
+    //             if (abs(A.End-B.End)<=ForceBrother) return true;
+    //             return false;
+    //         }
+    //         else if (!A.InvLeft)
+    //         {
+    //             if (abs(A.End-B.End)<=ForceBrother && (abs(A.End-B.End)<=ForceBrother || B.Length>=A.Length)) return true;
+    //             return false;
+    //         }
+    //         else if (!B.InvLeft)
+    //         {
+    //             if (abs(A.End-B.End)<=ForceBrother && (abs(A.End-B.End)<=ForceBrother || A.Length>=B.Length)) return true;
+    //             return false;
+    //         }
+    //     }
+    // }
     if (abs(A.Begin-B.Begin)<=ForceBrother && abs(A.End-B.End)<=ForceBrother) return true;
     int MinLength=min(A.Length,B.Length);
     if (abs(A.Begin-B.Begin)<=MinLength*Ratio && abs(A.End-B.End)<=MinLength*Ratio && abs(A.Length-B.Length)<=MinLength*Ratio) return true;
@@ -236,10 +276,6 @@ class Brotherhood
     vector<Signature> Cluster;
     bool CCS;
     unsigned int MinBegin, MaxEnd;
-    inline static float TypeRatios[3]={0.5,0.5,0.1};//For SV Types
-    inline static int TypeForceBrothers[3]={10,50,500};
-    inline static float CCSTypeRatios[3]={2.0,2.5,2.0};//For SV Types
-    inline static int CCSTypeForceBrothers[3]={100,200,100};
     Brotherhood(bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {};
     Brotherhood(Signature &S, bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {setCluster(S);};
     void setCluster(Signature & S)
@@ -249,14 +285,14 @@ class Brotherhood
         MinBegin=S.Begin;
         MaxEnd=S.End;
     }
-    bool canMerge(const Brotherhood & Other) const
+    bool canMerge(const Brotherhood & Other, Arguments &Args) const
     {
-        int ForceBrother=Brotherhood::TypeForceBrothers[Cluster[0].SupportedSV];
-        float Ratio=Brotherhood::TypeRatios[Cluster[0].SupportedSV];
+        int ForceBrother=Args.BrotherhoodTypeForceBrothers[Cluster[0].SupportedSV];
+        float Ratio=Args.BrotherhoodTypeRatios[Cluster[0].SupportedSV];
         if (CCS)
         {
-            ForceBrother=Brotherhood::CCSTypeForceBrothers[Cluster[0].SupportedSV];
-            Ratio=Brotherhood::CCSTypeRatios[Cluster[0].SupportedSV];
+            ForceBrother=Args.BrotherhoodCCSTypeForceBrothers[Cluster[0].SupportedSV];
+            Ratio=Args.BrotherhoodCCSTypeRatios[Cluster[0].SupportedSV];
         }
             // fprintf(stderr,"%d %d %d %d %d %d %d\n",Other.MinBegin-MaxEnd, Other.MinBegin, MaxEnd, MinBegin-Other.MaxEnd,MinBegin, Other.MaxEnd,Brotherhood::ForceBrother);
         if (((Other.MinBegin>MaxEnd+ForceBrother) || ((MinBegin>Other.MaxEnd+ForceBrother)))) return false;
@@ -273,9 +309,9 @@ class Brotherhood
         }
         return false;
     }
-    bool merge(Brotherhood & Other)
+    bool merge(Brotherhood & Other, Arguments &Args)
     {
-        if (canMerge(Other))
+        if (canMerge(Other,Args))
         {
             for (Signature & B:Other.Cluster)
             {
@@ -300,7 +336,7 @@ void brotherClusteringList(list<Brotherhood> &Brotherhoods, Arguments &Args)
             for (list<Brotherhood>::iterator Bi=next(Ai);Bi!=Brotherhoods.end();++Bi)
             {
                 if (Ai->MinBegin+Args.ClusteringMaxMergeRange<Bi->MinBegin) break;
-                if (Ai->merge(*Bi))
+                if (Ai->merge(*Bi,Args))
                 {
                     Brotherhoods.erase(Bi);
                     Next=true;
