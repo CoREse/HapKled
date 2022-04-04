@@ -514,6 +514,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     Pos=llPos/SignatureCluster.size();
     SVLen=llSVLen/SignatureCluster.size();
     
+    if (SVLen<=0) {Keep=false;return;}
+
     double LengthSD;
     LS=getLengthSDRatioScore(SignatureCluster,SVLen,&LengthSD);
 
@@ -599,7 +601,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             // else {Keep=false;return;}
         }
     }
-    InsConsensus=getInsConsensus(SVLen,SignatureCluster);
+    if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
     Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
    
