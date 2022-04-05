@@ -91,6 +91,8 @@ int main(int argc, const char* argv[])
 	vector<vector<Variant>> VariantsByContig;
 	bool FirstBam=true;
 	vector<Sam> SamFiles=initSam(Args);
+	double TotalCoverage=0;//Accumulative
+	unsigned ProcessedLength=0;
 	updateTime("Getting stats", "Starting calling...");
 	for (int i=0;i<NSeq;++i)
 	{
@@ -131,6 +133,9 @@ int main(int argc, const char* argv[])
 		// 	}
 		// }
 		double WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+		TotalCoverage=TotalCoverage*((double)(ProcessedLength)/(double)(ProcessedLength+Contigs[i].Size));
+		TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
+		ProcessedLength+=Contigs[i].Size;
 		// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
 		// continue;
 		if (!NoHeader and FirstBam)
@@ -166,7 +171,7 @@ int main(int argc, const char* argv[])
 				}
 			}
 		}
-		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d. Contig Size:%ld, Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, Contigs[i].Size, WholeCoverage);
+		fprintf(stderr,"%s: %llu\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
 		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
@@ -214,7 +219,7 @@ int main(int argc, const char* argv[])
 		for (int j=0;j<SignatureClusters.size();++j)
 		{
 			// ++Times[omp_get_thread_num()];
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j],CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j],CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 		}
 		// fprintf(stderr,"Times: %d %d %d %d %d %d %d %d\n",Times[0],Times[1],Times[2],Times[3],Times[4],Times[5],Times[6],Times[7]);
 		// for (vector<VCFRecord>::iterator iter=Records.begin();iter!=Records.end();++iter)

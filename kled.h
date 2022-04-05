@@ -30,16 +30,16 @@ struct Arguments {
     int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,100,100};
 	bool AllCCS=false;
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{10,3}//DEL
-	,{10,1}//INS
+	{{3,1}//DEL
+	,{1,1}//INS
 	,{20,2}//DUP
 	,{1,1}};//INV, only ST no SS
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.3},
-	{0.5,0.3},
+	{0.4,0.3},
 	{0.5,0.3},
 	{0.5,0.5}};
-	double LSDRSs[NumberOfSVTypes][2]={{0, 80},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{55,80},
+	double LSDRSs[NumberOfSVTypes][2]={{80, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{65,90},
 	{60,90},
 	{55,90}};
 	// double InsASSBases[2]={10,1};
