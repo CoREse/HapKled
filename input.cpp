@@ -246,7 +246,7 @@ void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 {
 	for (int i=1;i<Aligns.size();++i)
 	{
-		//if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
+		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
 		if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=Args.MinSVLen) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br)));
 	}
 }
@@ -255,7 +255,7 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 {
 	for (int i=1;i<Aligns.size();++i)
 	{
-		//if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
+		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
 		int Gap=(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)-(Aligns[i].Pos+10-Aligns[i-1].End);
 		if (Aligns[i-1].End<Aligns[i].Pos+Args.InsClipTolerance && Gap>=Args.MinSVLen && Gap<Args.InsMaxGapSize) Signatures.push_back(Signature(2,Tech,1,(Aligns[i-1].End+Aligns[i].Pos)/2,MIN(TheContig.Size-1,(Aligns[i-1].End+Aligns[i].Pos)/2+Gap),bam_get_qname(br)));
 	}
@@ -419,7 +419,11 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
-	for (int i=0;i<Aligns.size();++i) statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
+	for (int i=0;i<Aligns.size();++i)
+	{
+		statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
+		// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
+	}
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Args);
 	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Args);
@@ -530,6 +534,52 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	}
 }
 
+inline void getDelFromCigar(uint32_t * cigars, unsigned n_cigar, unsigned pos, const char * qname, int Tech, vector<Signature>& Signatures, Arguments & Args)
+{
+	int TLength= bam_cigar2qlen(n_cigar,cigars);
+	if (TLength<Args.MinTemplateLength) return;
+	int CurrentStart=-1, CurrentLength=0;
+	int Begin=pos;
+	//int MergeDis=500;
+	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			// int rlen=bam_cigar2rlen(1,cigars+i);
+			int rlen=bam_cigar_oplen(cigars[i]);
+			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
+			if (CurrentStart==-1)
+			{
+				CurrentStart=Begin;
+				CurrentLength=rlen;
+			}
+			else
+			{
+			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
+			{
+				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname));
+				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+				CurrentStart=Begin;
+				CurrentLength=rlen;
+			}
+			else
+			{
+				CurrentLength+=rlen;
+			}
+			}
+		}
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+		//Begin+=bam_cigar2rlen(1,cigars+i);
+	}
+	if (CurrentStart!=-1)
+	{
+		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname));
+				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+	}
+}
+
 void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
 	#ifdef CUTE_VER
@@ -574,6 +624,7 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	#else
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<Args.MinMappingQuality) return;
+	return getDelFromCigar(bam_get_cigar(br), br->core.n_cigar, br->core.pos, bam_get_qname(br), Tech, Signatures, Args);
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
 	if (TLength<Args.MinTemplateLength) return;
 	uint32_t * cigars=bam_get_cigar(br);

@@ -42,6 +42,8 @@ int main(int argc, const char* argv[])
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
     OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "All bams are CCS data.",'b',&(Args.AllCCS));
+    OH.addOpt(0, "CLR", 0, "", "All bams are CLR data.",'b',&(Args.AllCLR));
+    OH.addOpt(0, "NOF", 0, "", "No filter, output all results.(default false)",'b',&(Args.NoFilter));
     OH.getOpts(argc,argv);
 
 	Args.BamFileNames=OH.Args;

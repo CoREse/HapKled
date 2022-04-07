@@ -525,25 +525,29 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     // vector<double> Scores=scoring(SignatureCluster,SVLen);
     // double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
     // double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
-    double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
-    // if (Score<60) {Keep=false;return;}
-    // if (Scores[0]>=3 && Scores[4]>=55 && AmbientCoverage<WholeCoverage*0.6) Keep=true;
-    // if ((100.0-Scores[4])!=2.0*(100.0-LS)) fprintf(stderr,"%lf %lf, %lf %lf\n",Scores[4],LS,(100.0-Scores[4]),2.0*(100.0-LS));
-    if (Args.AllCCS)
-    {
-        if (SS+ST>=Args.CCSASSBases[SVTypeI][0]+WholeCoverage*Args.CCSASSCoverageMulti[SVTypeI][0] && LS>=Args.CCSLSDRSs[SVTypeI][0]) {Keep=true;}
-        else
-        {
-            if (SS+ST<Args.CCSASSBases[SVTypeI][1]+WholeCoverage*Args.CCSASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
-            // if (Scores[1]<95) {Keep=false;return;}
-            if (LS<Args.CCSLSDRSs[SVTypeI][1]) {Keep=false;return;}
-        }
-    }
+    // double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+
+    if (Args.NoFilter) Keep=true;
     else
     {
+        double (*ASSBases)[2]=Args.ASSBases;
+        double (*ASSCoverageMulti)[2]=Args.ASSCoverageMulti;
+        double (*LSDRSs)[2]=Args.LSDRSs;
+        if (Args.AllCLR)
+        {
+            ASSBases=Args.CLRASSBases;
+            ASSCoverageMulti=Args.CLRASSCoverageMulti;
+            LSDRSs=Args.CLRLSDRSs;
+        }
+        else if (Args.AllCCS)
+        {
+            ASSBases=Args.CCSASSBases;
+            ASSCoverageMulti=Args.CCSASSCoverageMulti;
+            LSDRSs=Args.CCSLSDRSs;
+        }
         if (SVType=="DUP" or SVType=="INV") if (SS-ST>ST) {Keep=false;return;}
         if (SVType=="INV")
-        {//0.574712643678161 [0, 6, 16, 90, 1, 0, 16, 55],[0, 28, 16, 90, 1, 0, 16, 55],[1, 0, 16, 55, 0, 0, 16, 90]
+        {
             Keep=true;
             bool HasLeft=false, HasRight=false;
             for (int i=0;i<SignatureCluster.size();++i)
@@ -556,13 +560,13 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             if (HasRight) INFO+="R";
             if (HasLeft&&HasRight)
             {
-                if (ST<Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0]) {Keep=false;return;}
-                if (LS<Args.LSDRSs[SVTypeI][0]) {Keep=false;return;}
+                if (ST<ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0]) {Keep=false;return;}
+                if (LS<LSDRSs[SVTypeI][0]) {Keep=false;return;}
             }
             else
             {
-                if (ST<Args.ASSBases[SVTypeI][1]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
-                if (LS<Args.LSDRSs[SVTypeI][1]) {Keep=false;return;}
+                if (ST<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+                if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
                 // if (SS+ST>=10 && LS>=50) {Keep=true;}
                 // else
                 // {
@@ -572,12 +576,12 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
                 // }
             }
         }
-        else if (SS+ST>=Args.ASSBases[SVTypeI][0]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][0] && LS>=Args.LSDRSs[SVTypeI][0]) {Keep=true;}
+        else if (SS+ST>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
-            if (SS+ST<Args.ASSBases[SVTypeI][1]+WholeCoverage*Args.ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+            if (SS+ST<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
             // if (Scores[1]<95) {Keep=false;return;}
-            if (LS<Args.LSDRSs[SVTypeI][1]) {Keep=false;return;}
+            if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
             // if (abs(SVLen)>10000)
             // {
             //     double BeforeCovergae=-1;

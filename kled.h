@@ -13,6 +13,7 @@ struct Arguments {
 	std::vector<const char *> CallingContigs;
 	std::string SampleName="*";
 	int ThreadN=8;
+	bool NoFilter=false;
 	int MinSVLen=30;
 	int MinMappingQuality=20;
 	int MinTemplateLength=500;
@@ -28,6 +29,7 @@ struct Arguments {
     int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={10,50,500,100};
     float BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,2.0,2.0};//For SV Types
     int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,100,100};
+	bool AllCLR=false;
 	bool AllCCS=false;
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{3,1}//DEL
@@ -40,6 +42,19 @@ struct Arguments {
 	{0.5,0.5}};
 	double LSDRSs[NumberOfSVTypes][2]={{80, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{65,90},
+	{60,90},
+	{55,90}};
+	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
+	{{3,1}//DEL
+	,{2,4}//INS
+	,{20,2}//DUP
+	,{1,1}};//INV, only ST no SS
+	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.2,0.2},
+	{0.4,0.1},
+	{0.5,0.3},
+	{0.5,0.5}};
+	double CLRLSDRSs[NumberOfSVTypes][2]={{30, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{55,85},
 	{60,90},
 	{55,90}};
 	// double InsASSBases[2]={10,1};
