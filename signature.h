@@ -3,12 +3,14 @@
 
 #include <string>
 #include <vector>
+#include <tuple>
 
 struct Segment
 {
     int Begin, End;
     Segment(int Begin,int End);
     bool operator==(const Segment &) const;
+    bool operator<(const Segment &) const;
 };
 
 class Signature
@@ -40,5 +42,16 @@ class Signature
 int precisionLevel(const Signature &A);
 int bestPrecision(const Signature &A,const Signature &B);
 int worstPrecision(const Signature &A,const Signature &B);
+
+struct SegmentSet
+{
+    std::vector<Segment> Segments;
+    std::vector<unsigned> MaxEnds;
+    std::tuple<int,int> getInvolved(int Start, int End);//Start and End is inclusive, return is [)
+    void add(int Begin, int End);
+    void sortNStat();
+    Segment& operator[](unsigned i);
+    SegmentSet();
+};
 
 #endif

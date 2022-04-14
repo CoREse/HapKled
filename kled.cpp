@@ -36,14 +36,25 @@ int main(int argc, const char* argv[])
 {
 	bool NoHeader=false;
 	OptHelper OH=OptHelper("kled [Options] Bam1 [Bam2] [Bam3] ...");
-    OH.addOpt('N', 0, 1, "TestNumber", "for test notation",'i',&(Args.TestN));
+    // OH.addOpt('N', 0, 1, "TestNumber", "for test notation",'i',&(Args.TestN));
     OH.addOpt('R', "Ref", 1, "FileName", "Indicate Reference Fasta File(required)",'s',&(Args.ReferenceFileName));
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
-    OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
+    OH.addOpt('t', "threads", 1, "Number", "Number of threads. (8)",'i',&(Args.ThreadN));
+    // OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "All bams are CCS data.",'b',&(Args.AllCCS));
     OH.addOpt(0, "CLR", 0, "", "All bams are CLR data.",'b',&(Args.AllCLR));
     OH.addOpt(0, "NOF", 0, "", "No filter, output all results.(default false)",'b',&(Args.NoFilter));
+    OH.addOpt('m', 0, 1, "SVLEN", "Minimum SV length. (30)",'i',&(Args.MinSVLen));
+    OH.addOpt('q', 0, 1, "Quality", "Minimum mapping quality. (20)",'i',&(Args.MinMappingQuality));
+    OH.addOpt('l', 0, 1, "Length", "Minimum template length. (500)",'i',&(Args.MinTemplateLength));
+    OH.addOpt('d', 0, 1, "Distance", "Minimum max merge distance of signature merging during CIGAR signature collection. (500)",'i',&(Args.DelMinMaxMergeDis));
+    OH.addOpt('p', 0, 1, "Portion", "Max merge portion of signature merging during CIGAR signature collection. (0.2)",'F',&(Args.DelMaxMergePortion));
+    OH.addOpt('c', 0, 1, "Size", "Coverage window size. (100)",'i',&(Args.CoverageWindowSize));
+    OH.addOpt('M', 0, 1, "Size", "Max cluster size, will resize to this value if a cluster is larger than this. (1000)",'i',&(Args.MaxClusterSize));
+    OH.addOpt(0, "InsClipTolerance", 1, "Size", "Insertion clip signature distance tolerance. (10)",'i',&(Args.InsClipTolerance));
+    OH.addOpt(0, "InsMaxGapSize", 1, "Size", "Insertion clip signature max gap size. (50000)",'i',&(Args.InsMaxGapSize));
+    OH.addOpt(0, "ClusteringBatchSize", 1, "Size", "Batch size of multihreading when clustering. (10000)",'i',&(Args.ClusteringBatchSize));
     OH.getOpts(argc,argv);
 
 	Args.BamFileNames=OH.Args;
@@ -95,6 +106,7 @@ int main(int argc, const char* argv[])
 	vector<Sam> SamFiles=initSam(Args);
 	double TotalCoverage=0;//Accumulative
 	unsigned ProcessedLength=0;
+	// FILE * WindowsFile=fopen("/home/cre/workspace/kled/data/wins.txt","wb");
 	updateTime("Getting stats", "Starting calling...");
 	for (int i=0;i<NSeq;++i)
 	{
@@ -112,12 +124,14 @@ int main(int argc, const char* argv[])
 			if (!ToCall) continue;
 		}
 		updateTime("","Calling...");
+		SegmentSet AllPrimarySegments;
 		vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 		double *CoverageWindows=new double[NumberOfCoverageWindows];
 		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
-		collectSignatures(Contigs[i],ContigTypeSignatures,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+		collectSignatures(Contigs[i],ContigTypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+		AllPrimarySegments.sortNStat();
 		fprintf(stderr,"%ld\n",Contigs[i].Size-1);
 		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
 		CoverageWindows[0]=0;
@@ -135,6 +149,12 @@ int main(int argc, const char* argv[])
 		// 	}
 		// }
 		double WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+		// int NameLength=Contigs[i].Name.length();
+		// fwrite(&(NameLength),sizeof(int),1,WindowsFile);
+		// fwrite(Contigs[i].Name.c_str(),1,Contigs[i].Name.length(),WindowsFile);
+		// fwrite(&(Contigs[i].Size),sizeof(unsigned),1,WindowsFile);
+		// fwrite(&(NumberOfCoverageWindows),sizeof(unsigned),1,WindowsFile);
+		// fwrite(CoverageWindows,sizeof(double),NumberOfCoverageWindows,WindowsFile);
 		TotalCoverage=TotalCoverage*((double)(ProcessedLength)/(double)(ProcessedLength+Contigs[i].Size));
 		TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
 		ProcessedLength+=Contigs[i].Size;
@@ -221,7 +241,7 @@ int main(int argc, const char* argv[])
 		for (int j=0;j<SignatureClusters.size();++j)
 		{
 			// ++Times[omp_get_thread_num()];
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j],CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j], AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 		}
 		// fprintf(stderr,"Times: %d %d %d %d %d %d %d %d\n",Times[0],Times[1],Times[2],Times[3],Times[4],Times[5],Times[6],Times[7]);
 		// for (vector<VCFRecord>::iterator iter=Records.begin();iter!=Records.end();++iter)
@@ -238,6 +258,7 @@ int main(int argc, const char* argv[])
 		for (auto r: Records)
 		{
 			if (!r.Keep) continue;
+			// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
 			r.resolveRef(Contigs[i],Ref);
 			printf("\n%s",string(r).c_str());
 		}
@@ -253,5 +274,6 @@ int main(int argc, const char* argv[])
 	fai_destroy(Ref);
 	free(Contigs);
 	closeSam(SamFiles);
+	// fclose(WindowsFile);
     return 0;
 }

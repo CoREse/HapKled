@@ -8,6 +8,7 @@
 #include "contig.h"
 #include <map>
 #include "kled.h"
+#include "input.h"
 
 struct HeaderEntry
 {
@@ -45,8 +46,12 @@ class VCFRecord
     int SS;
     int ST;
     int LS;
+    double CV;
     bool Precise;
     std::string InsConsensus;
+    //temp
+    // double CS;
+    // std::vector<Signature> Cluster;
     public:
     std::string CHROM;
     int Pos;//0-based reference Pos of the variant, for insertion is the pos after the insertion, otherwise is the 1st base of the variant
@@ -60,8 +65,9 @@ class VCFRecord
 
     bool Keep;//keep this record
 
-    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
+    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
     void resolveRef(const Contig & TheContig, faidx_t * Ref);
+    std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
 };

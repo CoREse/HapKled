@@ -1,6 +1,7 @@
 #include "signature.h"
 #include <string.h>
 #include "crelib/crelib.h"
+#include <algorithm>
 using namespace std;
 
 Signature::Signature()
@@ -59,6 +60,11 @@ bool Segment::operator==(const Segment & Other) const
     return Begin==Other.Begin && End==Other.End;
 }
 
+bool Segment::operator<(const Segment & Other) const
+{
+    return Begin<Other.Begin;
+}
+
 int precisionLevel(const Signature &A)
 {
     if (A.Tech==1 && A.Type==1) return 0;//drp sig, imprecise pricision
@@ -75,3 +81,49 @@ int worstPrecision(const Signature &A,const Signature &B)
 {
     return MIN(precisionLevel(A),precisionLevel(B));
 }
+
+std::tuple<int,int> SegmentSet::getInvolved(int Start, int End)
+{
+    tuple<int,int> Result={0,0};
+    int SS=0, SE=Segments.size(), Mid;
+    while (SS<SE-1)
+    {
+        Mid=(SS+SE)/2;
+        if (MaxEnds[Mid]<Start) SS=Mid;
+        else SE=Mid;
+    }
+    get<0>(Result)=SS;
+    SS=0, SE=Segments.size();
+    while (SS<SE-1)
+    {
+        Mid=(SS+SE)/2;
+        if (Segments[Mid].Begin>End) SE=Mid;
+        else SS=Mid;
+    }
+    get<1>(Result)=SE;
+    return Result;
+}
+void SegmentSet::add(int Begin, int End)
+{
+    Segments.push_back(Segment(Begin,End));
+}
+void SegmentSet::sortNStat()
+{
+	sort(Segments.begin(),Segments.begin()+Segments.size());
+    if (Segments.size()>0)
+    {
+        MaxEnds.resize(Segments.size());
+        int MaxEnd=Segments[0].End;
+        for (int i=0;i<Segments.size();++i)
+        {
+            MaxEnd=MAX(MaxEnd,Segments[i].End);
+            MaxEnds[i]=MaxEnd;
+        }
+    }
+}
+Segment& SegmentSet::operator[](unsigned i)
+{
+    return Segments[i];
+}
+
+SegmentSet::SegmentSet():Segments(),MaxEnds(){}

@@ -36,17 +36,6 @@ int RDWindowSize=100;
 
 mutex TopLock, WriteLock, StdinLock;
 
-#define read_is_unmapped(b) (((b)->core.flag&BAM_FUNMAP) != 0)
-#define read_mate_is_unmapped(b) (((b)->core.flag&BAM_FMUNMAP) != 0)
-#define read_is_paired(b) (((b)->core.flag&BAM_FPAIRED) != 0)
-#define read_is_read1(b) (((b)->core.flag&BAM_FREAD1) != 0)
-#define read_is_read2(b) (((b)->core.flag&BAM_FREAD2) != 0)
-#define align_is_primary(b) ((((b)->core.flag&BAM_FSECONDARY) == 0) && (((b)->core.flag&BAM_FSUPPLEMENTARY) == 0))
-#define align_is_secondary(b) (((b)->core.flag&BAM_FSECONDARY) != 0)
-#define align_is_supplementary(b) (((b)->core.flag&BAM_FSUPPLEMENTARY) != 0)
-#define read_is_forward(b) (((b)->core.flag&BAM_FREVERSE) == 0)
-#define read_mate_is_forward(b) (((b)->core.flag&BAM_FMREVERSE) == 0)
-
 int getTechFromReads(bam_hdr_t *Header, htsFile* SamFile)
 {
 	int CheckN=10;
@@ -367,11 +356,12 @@ inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & The
 void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<Signature> *TypeSignatures, double *CoverageWindows,Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
+	statCoverageCigar(br,CoverageWindows,TheContig,Args);
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
 	{
-		statCoverageCigar(br,CoverageWindows,TheContig,Args);
+		// statCoverageCigar(br,CoverageWindows,TheContig,Args);
 		return;
 	}
 	// printf("name:%s; SA:%s;\n",bam_get_qname(br),SA_tag_char);
@@ -419,11 +409,11 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
 	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
-	for (int i=0;i<Aligns.size();++i)
-	{
-		statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
-		// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
-	}
+	// for (int i=0;i<Aligns.size();++i)
+	// {
+	// 	statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
+	// 	// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
+	// }
 	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Args);
 	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Args);
@@ -759,13 +749,14 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	#endif
 }
 
-void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, double* CoverageWindows,Arguments & Args)
+void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, SegmentSet & AllPrimarySegments, double* CoverageWindows,Arguments & Args)
 {
 	#ifdef CUTE_VER
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	return;
 	#endif
 	// statCoverage(br,CoverageWindows,TheContig,Args);
+	if (align_is_primary(br)) AllPrimarySegments.add(br->core.pos,br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	getInsFromCigar(br,Tech,TypeSignatures[1],Args);
 	if (Tech==1)
@@ -847,7 +838,7 @@ void readBamToBrBlock(htsFile * SamFile,bam_hdr_t *Header, BrBlock** Top)
 }
 */
 
-void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<Signature>* TypeSignatures, double * CoverageWindows, Arguments & Args, FILE* Pipe=stdin)
+void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<Signature>* TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, Arguments & Args, FILE* Pipe=stdin)
 {
     bam1_t *br=bam_init1();
 	size_t linebuffersize=1024*0124;
@@ -860,7 +851,7 @@ void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & Sam
 	{
 		kstring_t ks={length,linebuffersize,linebuffer};
 		sam_parse1(&ks,SamFile.Header,br);
-		handlebr(br,TheContig,SamFile,Tech, SampleStats, TypeSignatures, CoverageWindows, Args);
+		handlebr(br,TheContig,SamFile,Tech, SampleStats, TypeSignatures, AllPrimarySegments, CoverageWindows, Args);
 		StdinLock.lock();
 		length=getline(&linebuffer,&linebuffersize,Pipe);
 		StdinLock.unlock();
@@ -989,7 +980,7 @@ void closeSam(vector<Sam> &SamFiles)
 	if (p.pool) hts_tpool_destroy(p.pool);
 }
 
-void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, const char * DataSource)
+void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, const char * DataSource)
 {
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
@@ -1030,7 +1021,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 		}
 		if (DataSource!=0)
 		{
-			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, ContigTypeSignatures,CoverageWindows,Args,DSFile);
+			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, ContigTypeSignatures,AllPrimarySegments,CoverageWindows,Args,DSFile);
 		}
 		else
 		{
@@ -1038,7 +1029,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 			hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
 			while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 			{
-				handlebr(br,TheContig, SamFiles[k], Tech, SampleStats, ContigTypeSignatures, CoverageWindows, Args);
+				handlebr(br,TheContig, SamFiles[k], Tech, SampleStats, ContigTypeSignatures, AllPrimarySegments, CoverageWindows, Args);
 			}
 			bam_destroy1(br);
 		}

@@ -348,43 +348,139 @@ unsigned long long combination(unsigned long long Total, unsigned long long Sele
     return Result;
 }
 
-string genotype(double ST, int Pos, int SVLen, string SVType, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args)
+const double pi=3.14159265358979323846;
+double normal(double mu, double sigma, double x)
+{
+    return exp(-pow(x-mu,2)/(2*sigma*sigma))/(2*pi*sigma);
+}
+
+double poisson(double lambda, int x)
+{
+    double p=1;
+    for (int i=1;i<=x;++i) p*=lambda/i;
+    p*=exp(-lambda);
+    return p;
+}
+
+int getNAllTemplates(vector<Signature> & Cluster,const Contig & TheContig, vector<Sam>& SamFiles, int Start, int End)
+{
+    // for (auto s : Cluster) {Start=MIN(s.Begin,Start);End=MAX(s.Begin,End);}
+    set<string> Temps;
+    for (int k=0;k<SamFiles.size();++k)
+    {
+        bam1_t *br=bam_init1();
+        hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,(TheContig.Name+":"+to_string(Start)+"-"+to_string(End)).c_str());
+        while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
+        {
+	        if (!align_is_primary(br)) continue;
+            // for (auto s: Cluster)
+            if (br->core.pos<Start && br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br))>=End) Temps.insert(bam_get_qname(br));
+        }
+        bam_destroy1(br);
+    }
+    return Temps.size();
+}
+
+int getNAllTemplates(const Contig & TheContig, SegmentSet & AllPrimarySegments, int Start, int End)
+{
+    // for (auto s : Cluster) {Start=MIN(s.Begin,Start);End=MAX(s.Begin,End);}
+    // set<string> Temps;
+    tuple<int, int> SearchRange=AllPrimarySegments.getInvolved(Start,End);
+    int Result=0;
+    for (int i=get<0>(SearchRange);i<get<1>(SearchRange);++i)
+    {
+        if (AllPrimarySegments[i].Begin<=Start && AllPrimarySegments[i].End>=End) ++Result;
+    }
+    return Result;
+}
+
+string VCFRecord::genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args)
 {
     double HomoThreshold=0.8;
-    int Scope=100;
-    int End=Pos+SVLen;
+    int Scope=0;
+    int CountStart=Pos;
+    int CountEnd=Pos+SVLen;
     if (SVType=="INS")
     {
-        Scope=500;
-        Pos=MAX(Pos-Scope,0);
-        End=Pos+Scope;
-        HomoThreshold=0.7;
+        Scope=400;
+        CountStart=MAX(Pos-Scope,0);
+        CountEnd=MIN(Pos+Scope,TheContig.Size-1);
+        HomoThreshold=0.75;
     }
+    int All;
+    // if (SVType=="INS")
+    // {
+    //     All=0;
+    //     for (auto s : Cluster)
+    //     {
+    //         Scope=10;
+    //         CountStart=MAX(s.Begin-Scope,0);
+    //         CountEnd=MIN(s.Begin+Scope,TheContig.Size-1);
+    //         All+=getAverageCoverage(CountStart,CountEnd,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
+    //     }
+    //     All/=Cluster.size();
+    // }
+    // CS=All;
+    if (SVType=="INS") All=getNAllTemplates(TheContig, AllPrimarySegments,CountStart,CountEnd);
+    else All=getAverageCoverage(CountStart,CountEnd,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
+    // else All=getAverageCoverage(Pos,End,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
     // else
     // {
     //     Pos=MAX(Pos-Scope,0);
     //     End+=Scope;
     // }
-    double ErrorRate=0.5;//Error rate of support/deny wrongly seqed/mapped to deny/support.
-    double EAF=0.5;//Estimated Allele Frequencey.
-    int All=getAverageCoverage(Pos,End,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
-    if (ST/All<HomoThreshold) return "0/1";
-    return "1/1";
-    int DT=All-int(ST);
-    if (DT<0) DT=0;
-    // fprintf(stderr, "%d,%d,",DT, int(ST));
-    return calc_GL_cute(DT,ST);
-    double PrioPs[3];
-    PrioPs[0]=pow((1.0-EAF),2)*pow(ErrorRate,ST);
-    PrioPs[1]=(1.0-EAF)*EAF*2*combination(All, DT)*pow(0.5,All);
-    PrioPs[2]=EAF*EAF*pow(ErrorRate,DT);
-    double PrioP=0;
-    for (int i=0;i<3;++i) PrioP+=PrioPs[i];
-    double PostPs[3];
-    double MaxP=0;
-    for (int i=0;i<3;++i) {PostPs[i]=PrioPs[i]/PrioP;if (MaxP<PostPs[i]) MaxP=PostPs[i];}
-    if (MaxP==PostPs[3]) return "1/1";
-    return "0/1";
+    // double ErrorRate=0.5;//Error rate of support/deny wrongly seqed/mapped to deny/support.
+    // double EAF=0.5;//Estimated Allele Frequencey.
+    CV=All;
+    if (double(ST)/All<HomoThreshold) Sample["GT"]="0/1";
+    else Sample["GT"]="1/1";
+    return Sample["GT"];
+    // if (All<=ST) return "1/1";
+    // double AF=0.5;
+
+    // double lambda=All/2.0;
+    // double Slack=1.6;
+    // if (SVType=="INS")
+    // {
+    //     AF=0.57;
+    //     Slack=0.8;
+    // }
+    // int DT=All-int(ST);
+    // if (DT<0) DT=0;
+
+    // double GL[2]={0,0};//0/1,1/1
+    // double post=2.0*AF*(1.0-AF)+AF*AF;
+    // GL[0]=2.0*AF*(1.0-AF)/post*poisson(lambda,DT)*poisson(lambda,ST);
+    // GL[1]=AF*AF/post*pow(poisson(lambda,ST/2.0),2);
+    // if (GL[1]>Slack*GL[0])
+    // {
+    //     Sample["GT"]="1/1";
+    // }
+    // else Sample["GT"]="0/1";
+    // return Sample["GT"];
+    // // double GL[3]={0,0,0};//0/0,0/1,1/1
+    // // // GL[0]=(1.0-AF)*(1.0-AF)*pow(normal(lambda,pow(lambda,0.5),DT/2.0),2);
+    // // // GL[1]=2.0*AF*(1.0-AF)*normal(lambda,pow(lambda,0.5),DT)*normal(lambda,pow(lambda,0.5),ST);
+    // // // GL[2]=AF*AF*pow(normal(lambda,pow(lambda,0.5),ST/2.0),2);
+    // // GL[0]=pow(poisson(lambda,DT/2.0),2);
+    // // GL[1]=poisson(lambda,DT)*poisson(lambda,ST);
+    // // GL[2]=pow(poisson(lambda,ST/2.0),2);
+    // // if (GL[2]>Slack*GL[1]) return "1/1";
+    // // return "0/1";
+
+    // // fprintf(stderr, "%d,%d,",DT, int(ST));
+    // return calc_GL_cute(DT,ST);
+    // double PrioPs[3];
+    // PrioPs[0]=pow((1.0-EAF),2)*pow(ErrorRate,ST);
+    // PrioPs[1]=(1.0-EAF)*EAF*2*combination(All, DT)*pow(0.5,All);
+    // PrioPs[2]=EAF*EAF*pow(ErrorRate,DT);
+    // double PrioP=0;
+    // for (int i=0;i<3;++i) PrioP+=PrioPs[i];
+    // double PostPs[3];
+    // double MaxP=0;
+    // for (int i=0;i<3;++i) {PostPs[i]=PrioPs[i]/PrioP;if (MaxP<PostPs[i]) MaxP=PostPs[i];}
+    // if (MaxP==PostPs[3]) return "1/1";
+    // return "0/1";
 }
 
 void resizeCluster(vector<Signature> &Cluster, int MaxSize)
@@ -464,7 +560,7 @@ string getInsConsensus(int SVLen, vector<Signature> & SignatureCluster, double E
 
 int VN=0;
 
-VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
+VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
 {
     // printf("%d:",SignatureCluster.size());
     // for (int j=0;j<SignatureCluster.size();++j)
@@ -607,7 +703,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     }
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
-    Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
+    // Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CV,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
+    genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
    
     // INFO+="SCORES="+to_string(int(Scores[0]));
     // for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
@@ -618,6 +715,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     QUAL=".";
     FILTER="PASS";
     CHROM=TheContig.Name;
+    // Cluster=SignatureCluster;
 }
 
 void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
@@ -708,7 +806,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
     //     }
     // }
     ++Pos;++End;//trans to 1-based
-    INFO+=(Precise?";PRECISE;":";IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS);
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV);
 }
 
 VCFRecord::operator std::string() const
@@ -799,6 +897,8 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","ST","Number of supported templates","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","LS","Length SD ratio score (100-ratio*100) of the cluster.","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","LR","L,R,LR","1","String"));
+    Header.addHeaderEntry(HeaderEntry("INFO","CV","Nearby coverage for genotyping.","1","Float"));
+    // Header.addHeaderEntry(HeaderEntry("INFO","CS","Nearby coverage for genotyping.(by windows)","1","Float"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));
     Header.addHeaderEntry(HeaderEntry("FORMAT","GT","Genotype","1","String"));
