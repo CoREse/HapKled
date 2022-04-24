@@ -34,28 +34,28 @@ struct Arguments {
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{3,1}//DEL
 	,{1,1}//INS
-	,{20,2}//DUP
+	,{0,2}//DUP
 	,{1,1}};//INV, only ST no SS
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.3},
 	{0.4,0.3},
-	{0.5,0.3},
+	{0.4,0.4},
 	{0.5,0.5}};
 	double LSDRSs[NumberOfSVTypes][2]={{80, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{65,90},
-	{60,90},
+	{95,90},
 	{55,90}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{3,1}//DEL
 	,{2,4}//INS
-	,{20,2}//DUP
+	,{0,2}//DUP
 	,{1,1}};//INV, only ST no SS
 	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.2,0.2},
 	{0.4,0.1},
-	{0.5,0.3},
+	{0.4,0.4},
 	{0.5,0.5}};
 	double CLRLSDRSs[NumberOfSVTypes][2]={{30, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{55,85},
-	{60,90},
+	{95,90},
 	{55,90}};
 	// double InsASSBases[2]={10,1};
 	// double InsASSCoverageMulti[2]={0.5,0.3};
