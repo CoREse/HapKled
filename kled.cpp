@@ -15,6 +15,9 @@
 #include <list>
 #include "ThreadPool.h"
 #include <unordered_map>
+#include <functional>
+#include <sstream>
+#include <iostream>
 using namespace std;
 using namespace cre;
 
@@ -28,12 +31,23 @@ void sortAndDeDup(vector<Signature> &V)
 	}
 }
 
+void showVersion(Arguments & Args)
+{
+	printf("Kled version %s.\n",Args.Version);
+}
+
 #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
 #pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
 Arguments Args;
 int main(int argc, const char* argv[])
 {
+	string RunString=Args.Version;
+	for (int i=1;i<argc;++i) RunString+=string(" ")+argv[i];
+	size_t Hash=hash<string>()(RunString);
+	stringstream ss;
+	ss<<std::hex<<Hash;
+	ss>>Args.RunHash;
 	bool NoHeader=false;
 	OptHelper OH=OptHelper("kled [Options] Bam1 [Bam2] [Bam3] ...");
     // OH.addOpt('N', 0, 1, "TestNumber", "for test notation",'i',&(Args.TestN));
@@ -41,6 +55,8 @@ int main(int argc, const char* argv[])
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
     OH.addOpt('t', "threads", 1, "Number", "Number of threads. (8)",'i',&(Args.ThreadN));
+    OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
+    OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
     // OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "All bams are CCS data.",'b',&(Args.AllCCS));
     OH.addOpt(0, "CLR", 0, "", "All bams are CLR data.",'b',&(Args.AllCLR));
@@ -56,6 +72,18 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "InsMaxGapSize", 1, "Size", "Insertion clip signature max gap size. (50000)",'i',&(Args.InsMaxGapSize));
     OH.addOpt(0, "ClusteringBatchSize", 1, "Size", "Batch size of multihreading when clustering. (10000)",'i',&(Args.ClusteringBatchSize));
     OH.getOpts(argc,argv);
+
+	if (Args.ShowHelp)
+	{
+		OH.showhelp();
+		exit(0);
+	}
+
+	if (Args.ShowVersion)
+	{
+		showVersion(Args);
+		exit(0);
+	}
 
 	Args.BamFileNames=OH.Args;
 
@@ -255,11 +283,13 @@ int main(int argc, const char* argv[])
 		sort(Records.data(),Records.data()+Records.size());
 		// Records.sort();
 		updateTime("Results sorting","Outputing results...");
+		unsigned int SVCounts[NumberOfSVTypes];for (int i=0;i<NumberOfSVTypes;++i) SVCounts[i]=0;
 		for (auto r: Records)
 		{
 			if (!r.Keep) continue;
 			// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-			r.resolveRef(Contigs[i],Ref);
+			r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()],Args);
+			++SVCounts[r.getSVTypeI()];
 			printf("\n%s",string(r).c_str());
 		}
 		//vector<Variant> ContigVariants;

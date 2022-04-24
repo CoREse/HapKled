@@ -49,6 +49,7 @@ class VCFRecord
     double CV;
     bool Precise;
     std::string InsConsensus;
+    int SVTypeI;
     //temp
     // double CS;
     // std::vector<Signature> Cluster;
@@ -65,8 +66,10 @@ class VCFRecord
 
     bool Keep;//keep this record
 
+    int getSVTypeI() const;
+
     VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
-    void resolveRef(const Contig & TheContig, faidx_t * Ref);
+    void resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, Arguments & Args);
     std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;

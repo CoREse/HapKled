@@ -61,6 +61,11 @@ const char * getSVType(const vector<Signature> &Signatures)
     return Signature::SVTypeNames[Signatures[0].SupportedSV];
 }
 
+int VCFRecord::getSVTypeI() const
+{
+    return SVTypeI;
+}
+
 tuple<int,int> getConsensusSite(vector<Signature> &Signatures)
 {
     if (Signatures.size()==0) return tuple<int,int>(-1,-1);
@@ -584,7 +589,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
     SVType=getSVType(SignatureCluster);
-    int SVTypeI=SignatureCluster[0].SupportedSV;
+    SVTypeI=SignatureCluster[0].SupportedSV;
     tuple<int,int> Site=analyzeSignatureCluster(SignatureCluster);
     SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
@@ -718,8 +723,9 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     // Cluster=SignatureCluster;
 }
 
-void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref)
+void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, Arguments & Args)
 {
+    ID="kled."+Args.RunHash.substr(0,8)+"."+SVType+"."+to_string(TypeCount);
     int TLen;
     int End;
     bool OutTag=false;
