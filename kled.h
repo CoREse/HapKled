@@ -7,9 +7,10 @@
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="0.5";
+	const char * Version="1.0";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
+	std::string CommandLine;
 	std::string RunHash;//Storing std::hash<std::string>(Version+Arguments) in hex.
 	int TestN=0;
 	const char * ReferenceFileName=0;
@@ -61,9 +62,6 @@ struct Arguments {
 	{55,85},
 	{95,90},
 	{55,90}};
-	// double InsASSBases[2]={10,1};
-	// double InsASSCoverageMulti[2]={0.5,0.3};
-	// double InsLSDRSs[2]={55, 80};
 	double CCSASSBases[NumberOfSVTypes][2]={{10,3},
 	{5,1},
 	{10,3},//Need further polish
@@ -76,11 +74,11 @@ struct Arguments {
 	{55,80},
 	{0,80},
 	{55,90}};
-	// double CCSInsASSBases[2]={5,1};
-	// double CCSInsASSCoverageMulti[2]={0.3,0.2};
-	// double CCSInsLSDRSs[2]={55, 80};
     double PreciseStandard=3;
     int MinimumPreciseTemplates=5;
+
+	std::string CustomFilterParas[NumberOfSVTypes]={"","","",""};
+	std::string CustomClusterParas[NumberOfSVTypes]={"","","",""};
 };
 
 #endif

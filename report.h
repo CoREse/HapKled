@@ -36,7 +36,7 @@ class VCFHeader
     void addHeaderEntry(const HeaderEntry & Entry);
     void addSample(const char * SampleName);
     void addContig(const Contig & TheContig);
-    std::string genHeader();
+    std::string genHeader(const Arguments & Args);
 };
 
 class VCFRecord

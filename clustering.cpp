@@ -4,7 +4,6 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
-#include "defines.h"
 #include <list>
 using namespace std;
 using namespace cre;
@@ -39,10 +38,6 @@ float calcOverlap(float B1, float E1, float B2, float E2)
 
 float distance(const Signature &A, const Signature &B, bool Partial, float * PPD, Stats BamStats)
 {
-    #ifdef CUTE_VER
-    *PPD=abs(A.Begin-B.Begin);
-    return *PPD;
-    #endif
     //if (A.SupportedSV!=B.SupportedSV) return 100;//it shouldn't happen
     float SDW, PDW, ODW;
     float PDN=900;//TODO: should be realated by tech and type, should make pd>0.5 means not the same
@@ -118,108 +113,101 @@ void keepLongestPerRead(vector<Signature> & SignatureCluster)
     }
 }
 
-void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats)//like jcrd and cuteSV, SortedSignatures may have deleted ones marked by Type=-1
+void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, bool CuteVer=false)//like jcrd and cuteSV, SortedSignatures may have deleted ones marked by Type=-1
 {
-    #ifdef CUTE_VER
-    float MaxDis=200;
-    int MinSupport=10;
-    for (int i=0;i<SortedSignatures.size();++i)
+    if (CuteVer)
     {
-        if (SortedSignatures[i].Type==-1) continue;
-        // printf("%d %d %s\n",SortedSignatures[i].Begin, SortedSignatures[i].Length, SortedSignatures[i].TemplateName.c_str());
-        if (Clusters.size()==0)
+        float MaxDis=200;
+        int MinSupport=10;
+        for (int i=0;i<SortedSignatures.size();++i)
         {
-            Clusters.push_back(vector<Signature>());
-        }
-        if (Clusters.back().size()==0) Clusters.back().push_back(SortedSignatures[i]);
-        else
-        {
-            if (SortedSignatures[i].Begin-Clusters.back().back().Begin>MaxDis)
-            {
-                if (Clusters.back().size()<MinSupport) Clusters.pop_back();
-                Clusters.push_back(vector<Signature>());
-            }
-            Clusters.back().push_back(SortedSignatures[i]);
-        }
-    }
-    if (Clusters.size()>0 && Clusters.back().size()<MinSupport) Clusters.pop_back();
-    //add dedup and length segment here
-    vector<vector<Signature>> OldCs=Clusters;
-    Clusters.clear();
-    for (int i=0;i< OldCs.size();++i)
-    {
-        keepLongestPerRead(OldCs[i]);
-        sort(OldCs[i].begin(),OldCs[i].end(),SigLengthLess);
-        if (OldCs[i].size()<10) continue;
-        double MeanLength=0;
-        for (int j=0;j<OldCs[i].size();++j)
-        {
-            MeanLength+=OldCs[i][j].Length;
-        }
-        MeanLength/=double(OldCs[i].size());
-        double Discrete=0.5*MeanLength;
-        Clusters.push_back(vector<Signature>());
-        Clusters.back().push_back(OldCs[i][0]);
-        int LastLen=OldCs[i][0].Length;
-        for (int j=1;j<OldCs[i].size();++j)
-        {
-            if (OldCs[i][j].Length-LastLen>Discrete)
-            {
-                Clusters.push_back(vector<Signature>());
-            }
-            Clusters.back().push_back(OldCs[i][j]);
-            LastLen=OldCs[i][j].Length;
-        }
-    }
-    #else
-    float MaxDis=0.7;
-    int Size=SortedSignatures.size();
-    short *Clustered=(short*) calloc(sizeof(short),Size);
-    int F0=0;
-    while (F0<Size)
-    {
-        for (int i=F0;i<SortedSignatures.size();++i)
-        {
-            if (Clustered[i]) continue;
+            if (SortedSignatures[i].Type==-1) continue;
+            // printf("%d %d %s\n",SortedSignatures[i].Begin, SortedSignatures[i].Length, SortedSignatures[i].TemplateName.c_str());
             if (Clusters.size()==0)
             {
                 Clusters.push_back(vector<Signature>());
             }
-            bool AllLink=true;
-            for (int j=0;j<Clusters.back().size();++j)
+            if (Clusters.back().size()==0) Clusters.back().push_back(SortedSignatures[i]);
+            else
             {
-                float PD;
-                if (distance(SortedSignatures[i],Clusters.back()[j],true,&PD, BamStats)>MaxDis)//+bestPrecision(SortedSignatures[i],Clusters.back()[j])-2>MaxDis)
+                if (SortedSignatures[i].Begin-Clusters.back().back().Begin>MaxDis)
                 {
-                    AllLink=false;
-                    if (PD+bestPrecision(SortedSignatures[i],Clusters.back()[j])-2>MaxDis)
-                    {
-                        Clusters.push_back(vector<Signature>());
-                        Clusters.back().push_back(SortedSignatures[i]);
-                        break;
-                    }
+                    if (Clusters.back().size()<MinSupport) Clusters.pop_back();
+                    Clusters.push_back(vector<Signature>());
                 }
-            }
-            if (AllLink)
-            {
                 Clusters.back().push_back(SortedSignatures[i]);
-                Clustered[i]=1;
             }
         }
-        F0=first0(Clustered,Size,F0);
+        if (Clusters.size()>0 && Clusters.back().size()<MinSupport) Clusters.pop_back();
+        //add dedup and length segment here
+        vector<vector<Signature>> OldCs=Clusters;
+        Clusters.clear();
+        for (int i=0;i< OldCs.size();++i)
+        {
+            keepLongestPerRead(OldCs[i]);
+            sort(OldCs[i].begin(),OldCs[i].end(),SigLengthLess);
+            if (OldCs[i].size()<10) continue;
+            double MeanLength=0;
+            for (int j=0;j<OldCs[i].size();++j)
+            {
+                MeanLength+=OldCs[i][j].Length;
+            }
+            MeanLength/=double(OldCs[i].size());
+            double Discrete=0.5*MeanLength;
+            Clusters.push_back(vector<Signature>());
+            Clusters.back().push_back(OldCs[i][0]);
+            int LastLen=OldCs[i][0].Length;
+            for (int j=1;j<OldCs[i].size();++j)
+            {
+                if (OldCs[i][j].Length-LastLen>Discrete)
+                {
+                    Clusters.push_back(vector<Signature>());
+                }
+                Clusters.back().push_back(OldCs[i][j]);
+                LastLen=OldCs[i][j].Length;
+            }
+        }
     }
-    free(Clustered);
-    #endif
-    // for (int i=0;i<Clusters.size();++i)
-    // {
-    //     printf("%d:",Clusters[i].size());
-    //     for (int j=0;j<Clusters[i].size();++j)
-    //     {
-    //         printf("%d,",Clusters[i][j].Length);
-    //     }
-    // printf("\n");
-    // }
-    // exit(0);
+    else
+    {
+        float MaxDis=0.7;
+        int Size=SortedSignatures.size();
+        short *Clustered=(short*) calloc(sizeof(short),Size);
+        int F0=0;
+        while (F0<Size)
+        {
+            for (int i=F0;i<SortedSignatures.size();++i)
+            {
+                if (Clustered[i]) continue;
+                if (Clusters.size()==0)
+                {
+                    Clusters.push_back(vector<Signature>());
+                }
+                bool AllLink=true;
+                for (int j=0;j<Clusters.back().size();++j)
+                {
+                    float PD;
+                    if (distance(SortedSignatures[i],Clusters.back()[j],true,&PD, BamStats)>MaxDis)//+bestPrecision(SortedSignatures[i],Clusters.back()[j])-2>MaxDis)
+                    {
+                        AllLink=false;
+                        if (PD+bestPrecision(SortedSignatures[i],Clusters.back()[j])-2>MaxDis)
+                        {
+                            Clusters.push_back(vector<Signature>());
+                            Clusters.back().push_back(SortedSignatures[i]);
+                            break;
+                        }
+                    }
+                }
+                if (AllLink)
+                {
+                    Clusters.back().push_back(SortedSignatures[i]);
+                    Clustered[i]=1;
+                }
+            }
+            F0=first0(Clustered,Size,F0);
+        }
+        free(Clustered);
+    }
 }
 
 bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int ForceBrother=5)
@@ -383,9 +371,9 @@ void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signa
 
 void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
 {
-    fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
+    // fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
     brotherClustering(SortedSignatures,Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats);
-    fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
+    // fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());
     // for (int i=0;i<Clusters.size();++i) fprintf(stderr, "%d\n",Clusters[i].size());
 }

@@ -8,7 +8,6 @@
 #include "time.h"
 #include <set>
 #include <numeric>
-#include "defines.h"
 #include <stdio.h>
 #include <iterator>
 
@@ -413,19 +412,6 @@ string VCFRecord::genotype(const Contig & TheContig, SegmentSet & AllPrimarySegm
         HomoThreshold=0.75;
     }
     int All;
-    // if (SVType=="INS")
-    // {
-    //     All=0;
-    //     for (auto s : Cluster)
-    //     {
-    //         Scope=10;
-    //         CountStart=MAX(s.Begin-Scope,0);
-    //         CountEnd=MIN(s.Begin+Scope,TheContig.Size-1);
-    //         All+=getAverageCoverage(CountStart,CountEnd,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
-    //     }
-    //     All/=Cluster.size();
-    // }
-    // CS=All;
     if (SVType=="INS") All=getNAllTemplates(TheContig, AllPrimarySegments,CountStart,CountEnd);
     else All=getAverageCoverage(CountStart,CountEnd,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
     // else All=getAverageCoverage(Pos,End,CoverageWindows,Args, CoverageWindowsSums, Checkpoints, CheckPointInterval);
@@ -567,24 +553,7 @@ int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
 {
-    // printf("%d:",SignatureCluster.size());
-    // for (int j=0;j<SignatureCluster.size();++j)
-    // {
-    //     printf("%d %d %s,",SignatureCluster[j].Begin,SignatureCluster[j].Length,SignatureCluster[j].TemplateName.c_str());
-    // }
-    // printf("\n");
-    // return;
     assert(SignatureCluster.size()>=0);
-    // if (SignatureCluster.size()>Args.MaxClusterSize) SignatureCluster=resizeCluster(SignatureCluster,Args.MaxClusterSize);
-    // SS,ST;
-    // printf("%d, ",SignatureCluster.size());
-    // for (int i=0;i<SignatureCluster.size();++i)
-    // {
-    //     // printf("[%d, %d, '%s'] ",SignatureCluster[i].Begin,SignatureCluster[i].Length,SignatureCluster[i].TemplateName.c_str());
-    //     printf("%d ", SignatureCluster[i].Length);
-    // }
-    // printf("\n");
-    // return;
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
     if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
     else {Keep=false; return;}
@@ -594,17 +563,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
     //VCF version 4.2 says if alt is <ID>, the pos is the base preceding the polymorphism. No mention of the "base 1" rule.
-    #ifdef CUTE_VER
-    unsigned long long llPos=0;
-    unsigned long long llSVLen=0;
-    for (int i=0;i<SignatureCluster.size();++i)
-    {
-        llPos+=SignatureCluster[i].Begin;
-        llSVLen+=SignatureCluster[i].Length;
-    }
-    Pos=llPos/SignatureCluster.size();
-    SVLen=llSVLen/SignatureCluster.size();
-    #endif
+
     unsigned long long llPos=0;
     unsigned long long llSVLen=0;
     for (int i=0;i<SignatureCluster.size();++i)
@@ -622,11 +581,6 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
 
     if (ST>=Args.MinimumPreciseTemplates && LengthSD<Args.PreciseStandard && calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard && calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard) Precise=true;
     else Precise=false;
-    
-    // vector<double> Scores=scoring(SignatureCluster,SVLen);
-    // double ScoreWeights[6]={0.29279039862777806, 0.015320183836380931, 0.14398052205008294, 0.17979354517797344, 0.2617766118686123, 0.10633873843917234};
-    // double Score=0;for (int i=0;i<Scores.size();++i) Score+=ScoreWeights[i]*Scores[i];
-    // double AmbientCoverage=getAverageCoverage(Pos,Pos+abs(SVLen),CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
 
     if (Args.NoFilter) Keep=true;
     else
@@ -668,20 +622,12 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             {
                 if (ST<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
                 if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
-                // if (SS+ST>=10 && LS>=50) {Keep=true;}
-                // else
-                // {
-                //     if (SS+ST<5) {Keep=false;return;}
-                //     // if (Scores[1]<95) {Keep=false;return;}
-                //     if (LS<80) {Keep=false;return;}
-                // }
             }
         }
         else if (SS+ST>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
             if (SS+ST<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
-            // if (Scores[1]<95) {Keep=false;return;}
             if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
             // if (abs(SVLen)>10000)
             // {
@@ -708,14 +654,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     }
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
-    // Sample["GT"]=genotype(ST,Pos,SVLen,SVType,CV,CoverageWindows,CoverageWindowsSums, CheckPoints, CheckPointInterval,Args);
     genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
    
-    // INFO+="SCORES="+to_string(int(Scores[0]));
-    // for (int i=1;i<Scores.size();++i) INFO+=","+to_string(int(Scores[i]));
-    //extern int VN;
-    //ID="kled."+SVType+"."+to_string(VN);
-    //++VN;
     ID=".";
     QUAL=".";
     FILTER="PASS";
@@ -763,54 +703,6 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
         }
     }
     free(TSeq);
-    // if (OutTag)
-    // {
-    //     if (Pos==0)
-    //     {
-    //         Pos=SVLen;
-    //         End=Pos-1;
-    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
-    //         REF=TSeq[0];
-    //         free(TSeq);
-    //         ALT="<"+SVType+">"+REF;
-    //     }
-    //     else
-    //     {
-    //         --Pos;//base before variant
-    //         End=Pos+SVLen;
-    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos,Pos,&TLen);
-    //         REF=TSeq[0];
-    //         free(TSeq);
-    //         ALT="<"+SVType+">";
-    //     }
-    // }
-    // else
-    // {
-    //     if (Pos==0)
-    //     {
-    //         Pos=SVLen;
-    //         End=Pos-1;
-    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),0,Pos,&TLen);
-    //         REF=string(TSeq);
-    //         free(TSeq);
-    //         if (SVType=="DEL")
-    //             ALT=REF[Pos];
-    //         else
-    //             ALT="<"+SVType+">"+REF[Pos];
-    //     }
-    //     else
-    //     {
-    //         --Pos;//base before variant
-    //         End=Pos+SVLen;
-    //         char * TSeq=faidx_fetch_seq(Ref,TheContig.Name.c_str(),Pos-1,End,&TLen);
-    //         REF=TSeq;
-    //         free(TSeq);
-    //         if (SVType=="DEL")
-    //             ALT=REF[0];
-    //         else
-    //             ALT="<"+SVType+">";
-    //     }
-    // }
     ++Pos;++End;//trans to 1-based
     INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV);
 }
@@ -875,7 +767,7 @@ void VCFHeader::addContig(const Contig & TheContig)
     Contigs.push_back(TheContig);
 }
 
-std::string VCFHeader::genHeader()
+std::string VCFHeader::genHeader(const Arguments & Args)
 {
     string Output;
     Output+=FileFormat+"\n"+FileDate+"\n"+Reference;
@@ -887,6 +779,8 @@ std::string VCFHeader::genHeader()
     {
         Output+=string("\n")+string(HeaderEntries[i]);
     }
+    Output+="\n##SVCaller=\"Kled version "+string(Args.Version)+"\"";
+    Output+="\n##CommandLine=\""+Args.CommandLine+"\"";
     Output+="\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT";
     for (int i=0;i<SampleNames.size();++i) Output+="\t"+SampleNames[i];
     return Output;

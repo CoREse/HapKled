@@ -21,7 +21,6 @@
 #include <math.h>
 #include <algorithm>
 #include "htslib/thread_pool.h"
-#include "defines.h"
 
 using namespace std;
 using namespace cre;
@@ -374,12 +373,6 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	const char * cigars;
 	pos=br->core.pos;
 	strand= read_is_forward(br)?1:0;
-	// uint32_t CIGARN=br->core.n_cigar;
-	// uint32_t CIGAR[CIGARN];
-	// memcpy(CIGAR,bam_get_cigar(br),CIGARN*sizeof(uint32_t));
-	// if (CIGARN!=br->core.n_cigar) fprintf(stderr,"notsamen");
-	// if (memcmp(CIGAR,bam_get_cigar(br),CIGARN*sizeof(uint32_t))!=0) fprintf(stderr,"notsame");
-	// Aligns.push_back(Alignment(pos,strand,CIGAR,CIGARN));
 	Aligns.push_back(Alignment(pos,strand,bam_get_cigar(br),br->core.n_cigar));
 	for (int i=0;i<SACharLen;i+=strlen(SATag+i)+1)
 	{
@@ -466,19 +459,7 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 			{
 				if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 				{
-					// int QueryLength=QueryBegin-CurrentQueryStart;
-					// char InsBases[QueryLength+1];
-					// // InsBases[0]='\0';
-					// for (int j=0;j<QueryLength;++j)
-					// {
-					// 	InsBases[j]=BamBases[bam_seqi(bam_get_seq(br),CurrentQueryStart+j)];
-					// }
-					// InsBases[QueryLength]='\0';
-					// if (Args.TestN==0)
-					// {if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),InsBases));}
-					// else
-					if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Allele.c_str()));
-					// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+					if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Allele.c_str()));\
 					CurrentStart=Begin;
 					CurrentLength=qlen;
 					CurrentQueryStart=QueryBegin;
@@ -494,33 +475,13 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 				Allele+=BamBases[bam_seqi(bam_get_seq(br),QueryBegin+j)];
 			}
 		}
-		// if (bam_cigar_op(cigars[i])==BAM_CINS)
-		// {
-		// 	if (CurrentStart!=-1)
-		// 	{
-		// 		int rlen=bam_cigar2rlen(1,cigars+i);
-		// 		CurrentLength-=rlen;
-		// 	}
-		// }
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==1||bam_cigar_op(cigars[i])==4||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) QueryBegin+=bam_cigar_oplen(cigars[i]);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
 	}
 	if (CurrentStart!=-1)
 	{
-		// int QueryLength=QueryBegin-CurrentQueryStart;
-		// char InsBases[QueryLength+1];
-		// // InsBases[0]='\0';
-		// for (int j=0;j<QueryLength;++j)
-		// {
-		// 	InsBases[j]=BamBases[bam_seqi(bam_get_seq(br),CurrentQueryStart+j)];
-		// }
-		// InsBases[QueryLength]='\0';
-		// if (Args.TestN==0)
-		// {if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),InsBases));}
-		// else
 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Allele.c_str()));
-				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
 }
 
@@ -566,53 +527,11 @@ inline void getDelFromCigar(uint32_t * cigars, unsigned n_cigar, unsigned pos, c
 	if (CurrentStart!=-1)
 	{
 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname));
-				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
 }
 
 void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
-	#ifdef CUTE_VER
-	if (br->core.qual<Args.MinMappingQuality) return;
-	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
-	if (TLength<Args.MinTemplateLength) return;
-	uint32_t * cigars=bam_get_cigar(br);
-	int CurrentStart=-1, CurrentLength=0;
-	int Begin=br->core.pos;
-	int MinMaxMergeDis=0;//Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
-	float MaxMergeDisPortion=Args.DelMaxMergePortion;
-	for (int i=0;i<br->core.n_cigar;++i)
-	{
-		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
-		{
-			int rlen=bam_cigar_oplen(cigars[i]);
-			if (CurrentStart==-1)
-			{
-				CurrentStart=Begin;
-				CurrentLength=rlen;
-			}
-			else
-			{
-			if (Begin-CurrentStart-CurrentLength>=MinMaxMergeDis)//(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
-			{
-				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
-				CurrentStart=Begin;
-				CurrentLength=rlen;
-			}
-			else
-			{
-				CurrentLength+=rlen;
-			}
-			}
-		}
-		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
-	}
-	if (CurrentStart!=-1)
-	{
-		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
-	}
-	#else
-	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<Args.MinMappingQuality) return;
 	return getDelFromCigar(bam_get_cigar(br), br->core.n_cigar, br->core.pos, bam_get_qname(br), Tech, Signatures, Args);
 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
@@ -650,14 +569,6 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 			}
 			}
 		}
-		// if (bam_cigar_op(cigars[i])==BAM_CINS)
-		// {
-		// 	if (CurrentStart!=-1)
-		// 	{
-		// 		int rlen=bam_cigar2rlen(1,cigars+i);
-		// 		CurrentLength-=rlen;
-		// 	}
-		// }
 		//Those 4 kinds of op add ref
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
@@ -667,95 +578,10 @@ void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br)));
 				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
 	}
-	/*
-	vector<int> Splits;
-	int Length=bam_cigar2rlen(br->core.n_cigar,cigars);
-	if (Length<=0) return;
-	int * Variants=(int*) calloc(Length, sizeof(int));
-	int k=0;
-	for (int i=0;i<br->core.n_cigar;++i)
-	{
-		int rlen=bam_cigar2rlen(1,cigars+i);
-		int qlen=bam_cigar2qlen(1,cigars+i);
-		for (int j=k;j<k+rlen;++j)
-		{
-			if (rlen<qlen) Variants[i]=1;
-			else if (rlen>qlen) Variants[i]=-1;
-			else Variants[i]=0;
-		}
-		k+=rlen;
-	}
-	int Window=5,ThresholdN=3,ThresholdSum=2, Last=0;
-	for (int i=0;i<Length;++i)//find splits
-	{
-		int Sum=0,N=0;
-		for (int j=i;j<i+Window;++j)
-		{
-			Sum+=Variants[j];
-			if (Variants[j]!=0) N+=1;
-			if (i+Window<Length)
-			{
-				if (N==Length-i && abs(Sum)>=1)
-				{
-					if (Last==0)
-					{
-						Splits.push_back(i);
-						Last=1;
-					}
-				}
-				else
-				{
-					if (Last==1)
-					{
-						Splits.push_back(i);
-						Last=0;
-					}
-				}
-			}
-			else
-			{
-				if (N>=ThreadN && abs(Sum)>=ThresholdSum)
-				{
-					if (Last==0)
-					{
-						Splits.push_back(i);
-						Last=1;
-					}
-				}
-				else
-				{
-					if (Last==1)
-					{
-						Splits.push_back(i);
-						Last=0;
-					}
-				}
-			}
-		}
-		Last=0,Sum=0;
-		for (int i=0;i<Splits.size();++i)
-		{
-			for (int j=Last;j<Splits[i];++j)
-			{
-				Sum+=Variants[j];
-			}
-			if (Sum<=-50) Signatures.push_back(Signature(0,Tech,0,br->core.pos+Last,br->core.pos+Splits[i],bam_get_qname(br)));
-			Last=Splits[i];
-		}
-	}*/
-		//if ((cigars[i]&0xf==BAM_CDEL)&&cigars[i]>>4>=50) Signatures.push_back(Signature(0,Tech,0,Begin,Begin+cigars[i]>>4,bam_get_qname(br)));
-		//if (align_is_primary(br)&&((cigars[i]&0xf==BAM_CSOFT_CLIP)||cigars[i]&0xf==BAM_CHARD_CLIP)&&(cigars[i]>>4>=10)) searchForClipSignatures(br,TheContig, SamFile, Header, BamIndex, Tech, Signatures);
-		//Begin+=bam_cigar2rlen(1,cigars+i);
-	#endif
 }
 
 void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &SampleStats, vector<Signature> *TypeSignatures, SegmentSet & AllPrimarySegments, double* CoverageWindows,Arguments & Args)
 {
-	#ifdef CUTE_VER
-	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
-	return;
-	#endif
-	// statCoverage(br,CoverageWindows,TheContig,Args);
 	if (align_is_primary(br)) AllPrimarySegments.add(br->core.pos,br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	getDelFromCigar(br,Tech,TypeSignatures[0],Args);
 	getInsFromCigar(br,Tech,TypeSignatures[1],Args);
@@ -992,12 +818,6 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 
 		string Region=TheContig.Name;
 
-		//if ((!filesystem::exists(string(SampleFileName)+".")) &&(!filesystem::exists(string(SampleFileName)+".")) &&(!filesystem::exists(string(SampleFileName)+".")))
-		//{
-		//	die("Please index the samfile(%s) first!",SampleFileName);
-		//}
-
-
 		int Tech=AllTechs[k];
 
 		int ReadCount=0, UnmappedCount=0;
@@ -1046,8 +866,6 @@ Contig * getContigs(const char *ReferenceFileName, int& NSeq, int RDWindowSize)
 	{
 		const char * ContigName=faidx_iseq(Ref,i);
 		int SeqLen=faidx_seq_len(Ref,ContigName);
-		//int Size=SeqLen/RDWindowSize;
-		//if (SeqLen%RDWindowSize!=0) ++Size;
 		new (Contigs+i) Contig(ContigName, SeqLen);
 	}
 	fai_destroy(Ref);
