@@ -7,7 +7,7 @@ HTSLIBDIR=htslib
 SUBMODULES=crelib $(HTSLIBDIR) optutils
 
 PROJECT_OBJS=kled.o input.o signature.o contig.o StatsManager.o StatsTracker.o clustering.o report.o
-PROJECT_HEADERS=kled.h input.h signature.h contig.h clustering.h report.h defines.h
+PROJECT_HEADERS=kled.h input.h signature.h contig.h clustering.h report.h
 EXAMPLE_OBJS=
 HTSLIB=$(HTSLIBDIR)/libhts.a
 LAUNCHER=./launcher
