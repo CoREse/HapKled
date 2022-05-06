@@ -13,8 +13,6 @@
 #include <omp.h>
 #include <iterator>
 #include <list>
-#include "ThreadPool.h"
-#include <unordered_map>
 #include <functional>
 #include <sstream>
 #include <iostream>
@@ -86,7 +84,7 @@ bool analyzeCustomParas(Arguments & Args)
 }
 
 #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
-#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
+//#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
 Arguments Args;
 int main(int argc, const char* argv[])
