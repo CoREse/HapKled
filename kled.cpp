@@ -12,7 +12,6 @@
 #include "crelib/crelib.h"
 #include <omp.h>
 #include <iterator>
-#include <list>
 #include <functional>
 #include <sstream>
 #include <iostream>
