@@ -271,16 +271,23 @@ double getAverageCoverage(int Begin, int End, double * CoverageWindows, Argument
     return Cov;
 }
 
-bool keepCluster(vector<Signature> &SignatureCluster, int & SS, int &ST)
+bool statCluster(vector<Signature> &SignatureCluster, int & SS, int &ST, int& SS2, int& ST2)
 {
     SS=0;
-    set<string> SupportTemps;;
+    SS2=0;
+    set<string> SupportTemps,SupportTemps2;
     for (int i =0;i<SignatureCluster.size();++i)
     {
         ++SS;
         SupportTemps.insert(SignatureCluster[i].TemplateName);
+        if (SignatureCluster[i].Tech==1)
+        {
+            ++SS2;
+            SupportTemps2.insert(SignatureCluster[i].TemplateName);
+        }
     }
     ST=SupportTemps.size();
+    ST2=SupportTemps2.size();
     return true;
     // if (ST>=1) return true;
     // return false;
@@ -555,8 +562,8 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
 {
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
-    if (keepCluster(SignatureCluster,SS,ST)) Keep=true;
-    else {Keep=false; return;}
+    Keep=true;
+    statCluster(SignatureCluster,SS,ST,SS2,ST2);
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
     tuple<int,int> Site=analyzeSignatureCluster(SignatureCluster);
@@ -583,6 +590,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     else Precise=false;
 
     if (Args.NoFilter) Keep=true;
+    else if (ST2>30) Keep=true;
     else
     {
         double (*ASSBases)[2]=Args.ASSBases;
@@ -704,7 +712,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     }
     free(TSeq);
     ++Pos;++End;//trans to 1-based
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV);
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2);
 }
 
 VCFRecord::operator std::string() const
@@ -795,6 +803,8 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","IMPRECISE","Imprecise structural variant","0","Flag"));
     Header.addHeaderEntry(HeaderEntry("INFO","SS","Number of supported signatures","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","ST","Number of supported templates","1","Integer"));
+    Header.addHeaderEntry(HeaderEntry("INFO","SS2","Number of supported NGS signatures","1","Integer"));
+    Header.addHeaderEntry(HeaderEntry("INFO","ST2","Number of supported NGS templates","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","LS","Length SD ratio score (100-ratio*100) of the cluster.","1","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","LR","L,R,LR","1","String"));
     Header.addHeaderEntry(HeaderEntry("INFO","CV","Nearby coverage for genotyping.","1","Float"));

@@ -252,6 +252,18 @@ bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int Forc
     //         }
     //     }
     // }
+    // if (A.Type==1 || B.Type==1)
+    // {
+    //     if (A.Type==1)
+    //     {
+    //         if (A.Begin-ForceBrother<=B.Begin && A.Begin>MIN(B.Begin-ForceBrother,B.Begin-MinLength*Ratio) && A.End+ForceBrother>=B.End && A.End<MAX(B.End+ForceBrother,B.End+MinLength*Ratio)) return true;
+    //     }
+    //     if (B.Type==1)
+    //     {
+    //         if (B.Begin-ForceBrother<=A.Begin && A.Begin>MIN(A.Begin-ForceBrother,A.Begin-MinLength*Ratio) && B.End+ForceBrother>=A.End && B.End<MAX(A.End+ForceBrother,A.End+MinLength*Ratio)) return true;
+    //     }
+    //     return false;
+    // }
     if (abs(A.Begin-B.Begin)<=ForceBrother && abs(A.End-B.End)<=ForceBrother) return true;
     int MinLength=min(A.Length,B.Length);
     if (abs(A.Begin-B.Begin)<=MinLength*Ratio && abs(A.End-B.End)<=MinLength*Ratio && abs(A.Length-B.Length)<=MinLength*Ratio) return true;

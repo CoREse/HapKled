@@ -230,6 +230,17 @@ struct Alignment
 	}
 };
 
+string cigar2string(uint32_t* CIGARD, uint32_t CIGARN)
+{
+	string result="";
+	for (int i=0;i<CIGARN;++i)
+	{
+		result+=to_string(bam_cigar_oplen(CIGARD[i]));
+		result+=bam_cigar_opchr(CIGARD[i]);
+	}
+	return result;
+}
+
 void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, Arguments & Args)
 {
 	for (int i=1;i<Aligns.size();++i)
@@ -355,7 +366,7 @@ inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & The
 void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<Signature> *TypeSignatures, double *CoverageWindows,Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
-	statCoverageCigar(br,CoverageWindows,TheContig,Args);
+	if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig,Args);
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
@@ -416,13 +427,55 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 //This kind of signature should - some normal isize when calc svlen
 void getDRPSignature(bam1_t * br, Stats& SampleStats, vector<Signature> *TypeSignatures)
 {
-	if ((!read_is_unmapped(br)) && (!read_mate_is_unmapped(br)))
+	// const char * qname=bam_get_qname(br);
+	// if (strcmp(qname, "HISEQ1:93:H2YHMBCXX:2:1112:15493:51859")==0)
+	// {
+	// 	string CIGAR=cigar2string(bam_get_cigar(br),br->core.n_cigar);
+	// 	int a=1;
+	// }
+	if ((!read_is_unmapped(br)) && (!read_mate_is_unmapped(br)) && br->core.mtid==br->core.tid && br->core.isize>=0)
 	{
+		int ForwardBase=-1, ReverseBase, ForwardEnd, ReverseEnd, DupStart, DupEnd, DupSize;// ForwardBase|-->ForwardEnd  ReverseEnd<--|ReverseBase
+		// if (read_is_read1(br) && read_is_forward(br) && (!read_mate_is_forward(br)) || !(read_is_read1(br)) && (!read_is_forward(br)) && read_mate_is_forward(br))
 		if (read_is_forward(br) && (!read_mate_is_forward(br)))
 		{
-			//uint32_t * cigars=bam_get_cigar(br);
-			if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
-			else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[2].push_back(Signature(1,1,2,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
+			ForwardBase=br->core.pos;
+			ForwardEnd=br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
+			ReverseBase=ForwardBase+br->core.isize;
+			ReverseEnd=br->core.mpos;
+			DupStart=ForwardBase;
+			DupEnd=ReverseBase;
+			DupSize=SampleStats.Mean-(DupEnd-DupStart);
+			if (DupSize<0) DupSize=0;
+			// uint32_t * cigars=bam_get_cigar(br);
+			// int isize=br->core.mpos+bam_cigar2qlen(br->core.n_cigar,cigars)-int(br->core.pos);
+			// if (br->core.isize>SampleStats.Mean+3*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,br->core.pos,br->core.pos+br->core.isize,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
+			// else if (br->core.isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[2].push_back(Signature(1,1,2,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
+			// if (isize>SampleStats.Mean+3*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)),br->core.mpos,bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize-SampleStats.Mean));
+			// else if (isize<SampleStats.Mean-3*SampleStats.SD && br->core.isize>-1000) TypeSignatures[2].push_back(Signature(1,1,2,br->core.mpos,bam_endpos(br),bam_get_qname(br),Segment(br->core.pos,bam_endpos(br)),Segment(br->core.mpos,br->core.pos+br->core.isize),br->core.isize>0?SampleStats.Mean-br->core.isize:abs(br->core.isize)+brGetClippedQlen(br)));
+		}
+		else if ((!read_is_forward(br)) && read_mate_is_forward(br))
+		{
+			ForwardBase=br->core.mpos;
+			ForwardEnd=br->core.pos+br->core.isize;
+			ReverseBase=br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
+			ReverseEnd=br->core.pos;
+			DupStart=ReverseEnd;
+			DupEnd=ForwardEnd;
+			DupSize=DupEnd-DupStart;
+		}
+		if (ForwardBase!=-1)
+		{
+			int BaseGap=ReverseBase-ForwardBase;
+			// if (BaseGap>100000)
+			// {
+			// 	string CIGAR=cigar2string(bam_get_cigar(br),br->core.n_cigar);
+			// 	char * qname=bam_get_qname(br);
+			// 	int a=1;
+			// }
+			int DelLength=BaseGap-SampleStats.Mean;
+			if (BaseGap>SampleStats.Mean+5*SampleStats.SD) TypeSignatures[0].push_back(Signature(1,1,0,ForwardBase+int(SampleStats.Mean/2),ForwardBase+int(SampleStats.Mean/2)+DelLength,bam_get_qname(br),Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DelLength));
+			else if (BaseGap<SampleStats.Mean-3*SampleStats.SD) TypeSignatures[2].push_back(Signature(1,1,2,DupStart,DupEnd,bam_get_qname(br),Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DupSize));
 		}
 	}
 }
@@ -587,7 +640,7 @@ void handlebr(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, Stats &Sam
 	getInsFromCigar(br,Tech,TypeSignatures[1],Args);
 	if (Tech==1)
 	{
-		if (read_is_paired(br) && read_is_read1(br))
+		if (read_is_paired(br))
 		{
 			getDRPSignature(br, SampleStats, TypeSignatures);
 		}

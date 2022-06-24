@@ -164,10 +164,11 @@ int main(int argc, const char* argv[])
     
 	updateTime("Reading reference","Getting stats...");
 	vector<int> AllTechs=getAllTechs(Args);
+	// fprintf(stderr,"All techs:");for (int i=0;i<AllTechs.size();++i) fprintf(stderr," %d",AllTechs[i]);fprintf(stderr,"\n");
 
 	vector<Stats> AllStats=getAllStats(Args.ReferenceFileName,Args.BamFileNames,AllTechs);
 
-	// for (int i=0;i<AllStats.size();++i) fprintf(stderr,"%f %f %f %f %f\n",AllStats[i].BelowIS,AllStats[i].MedianIS,AllStats[i].UpIS,AllStats[i].Mean,AllStats[i].SD);
+	for (int i=0;i<AllStats.size();++i) fprintf(stderr,"%f %f %f %f %f\n",AllStats[i].BelowIS,AllStats[i].MedianIS,AllStats[i].UpIS,AllStats[i].Mean,AllStats[i].SD);
 	//exit(0);
 
 	VCFHeader Header(Args.ReferenceFileName);
@@ -256,35 +257,40 @@ int main(int argc, const char* argv[])
 			printf(Header.genHeader(Args).c_str());
 			FirstBam=false;
 		}
-		// int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0;
-		// for (int m=0;m<NumberOfSVTypes;++m)
-		// {
-		// 	vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
-		// 	totalsig+=ContigSignatures.size();
-		// 	for (int j=0;j<ContigSignatures.size();++j)
-		// 	{
-		// 		if (ContigSignatures[j].Type==0)
-		// 		{
-		// 			if (ContigSignatures[j].SupportedSV==0) ++cigardel;
-		// 			if (ContigSignatures[j].SupportedSV==1) ++cigarins;
-		// 			if (ContigSignatures[j].SupportedSV==2) ++cigardup;
-		// 		}
-		// 		else if (ContigSignatures[j].Type==1)
-		// 		{
-		// 			if (ContigSignatures[j].SupportedSV==0) ++drpdel;
-		// 			if (ContigSignatures[j].SupportedSV==2) ++drpdup;
-		// 		}
-		// 		else
-		// 		{
-		// 			if (ContigSignatures[j].SupportedSV==0) ++clipdel;
-		// 			if (ContigSignatures[j].SupportedSV==1) ++clipins;
-		// 			if (ContigSignatures[j].SupportedSV==2) ++clipdup;
-		// 			if (ContigSignatures[j].SupportedSV==3) ++clipinv;
-		// 		}
-		// 	}
-		// }
-		// fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, Contigs[i].Size, WholeCoverage, TotalCoverage);
-
+		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0, NGSCigar=0, NGSClip=0;
+		for (int m=0;m<NumberOfSVTypes;++m)
+		{
+			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
+			totalsig+=ContigSignatures.size();
+			for (int j=0;j<ContigSignatures.size();++j)
+			{
+				if (ContigSignatures[j].Type==0)
+				{
+					if (ContigSignatures[j].SupportedSV==0) ++cigardel;
+					if (ContigSignatures[j].SupportedSV==1) ++cigarins;
+					if (ContigSignatures[j].SupportedSV==2) ++cigardup;
+					if (ContigSignatures[j].Tech==1) ++NGSCigar;
+				}
+				else if (ContigSignatures[j].Type==1)
+				{
+					if (ContigSignatures[j].SupportedSV==0) ++drpdel;
+					if (ContigSignatures[j].SupportedSV==2) ++drpdup;
+				}
+				else
+				{
+					if (ContigSignatures[j].SupportedSV==0) ++clipdel;
+					if (ContigSignatures[j].SupportedSV==1) ++clipins;
+					if (ContigSignatures[j].SupportedSV==2) ++clipdup;
+					if (ContigSignatures[j].SupportedSV==3) ++clipinv;
+					if (ContigSignatures[j].Tech==1) ++NGSClip;
+				}
+				if (ContigSignatures[j].Tech==0) ++SMRT;
+				else ++NGS;
+			}
+		}
+		fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
+		// extern int forwarded, reversed, nread1, nread2;
+		// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
 		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
 		for (int k=0;k<NumberOfSVTypes;++k)
@@ -295,6 +301,38 @@ int main(int argc, const char* argv[])
 		updateTime("Clustering","Generating results...");
 		vector<vector<Signature>> SignatureClusters;
 		for (int k=0;k<NumberOfSVTypes;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
+		
+		totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0;
+		for (int m=0;m<SignatureClusters.size();++m)
+		{
+			// vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
+			// totalsig+=ContigSignatures.size();
+			for (int j=0;j<SignatureClusters[m].size();++j)
+			{
+				if (SignatureClusters[m][j].Type==0)
+				{
+					if (SignatureClusters[m][j].SupportedSV==0) ++cigardel;
+					if (SignatureClusters[m][j].SupportedSV==1) ++cigarins;
+					if (SignatureClusters[m][j].SupportedSV==2) ++cigardup;
+				}
+				else if (SignatureClusters[m][j].Type==1)
+				{
+					if (SignatureClusters[m][j].SupportedSV==0) ++drpdel;
+					if (SignatureClusters[m][j].SupportedSV==2) ++drpdup;
+				}
+				else
+				{
+					if (SignatureClusters[m][j].SupportedSV==0) ++clipdel;
+					if (SignatureClusters[m][j].SupportedSV==1) ++clipins;
+					if (SignatureClusters[m][j].SupportedSV==2) ++clipdup;
+					if (SignatureClusters[m][j].SupportedSV==3) ++clipinv;
+				}
+				if (SignatureClusters[m][j].Tech==0) ++SMRT;
+				else ++NGS;
+			}
+		}
+		fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
+
 		vector<VCFRecord> Records;
 		#pragma omp parallel for reduction(RecordVectorConc:Records)
 		for (int j=0;j<SignatureClusters.size();++j)

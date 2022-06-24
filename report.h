@@ -45,6 +45,8 @@ class VCFRecord
     std::string SVType;
     int SS;
     int ST;
+    int SS2;
+    int ST2;
     int LS;
     double CV;
     bool Precise;
