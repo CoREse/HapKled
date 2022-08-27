@@ -1,7 +1,7 @@
 CC=g++
 AR=ar
 #CPPFLAGS= -Wall -g -Lhtslib -lhts -Lcrelib -lcre optutils/opthelper.a --std=c++17
-CPPFLAGS= --std=c++17 -g
+CPPFLAGS= --std=c++17 -g -fopenmp
 LDFLAGS= -fopenmp 
 HTSLIBDIR=htslib
 SUBMODULES=crelib $(HTSLIBDIR) optutils
@@ -34,7 +34,7 @@ $(PROJECT_OBJS): $(PROJECT_HEADERS)
 
 HTSLIB_LIBS = -lz -lm -lbz2 -llzma -lcurl -lpthread -lcrypto -ldeflate
 kled: $(PROJECT_OBJS)
-	$(CC) $^ -o $@ -fopenmp $(HTSPREFIX)/libhts.a $(HTSLIB_LIBS) -Lcrelib -lcre optutils/opthelper.a --std=c++17
+	$(CC) $^ -o $@ $(LDFLAGS) $(HTSPREFIX)/libhts.a $(HTSLIB_LIBS) -Lcrelib -lcre optutils/opthelper.a --std=c++17
 
 clean:
 	rm *.o kled

@@ -9,6 +9,7 @@
 #include <map>
 #include "kled.h"
 #include "input.h"
+#include "clustering.h"
 
 struct HeaderEntry
 {
@@ -49,6 +50,7 @@ class VCFRecord
     int ST2;
     int LS;
     double CV;
+    double CR;
     bool Precise;
     std::string InsConsensus;
     int SVTypeI;
@@ -70,8 +72,8 @@ class VCFRecord
 
     int getSVTypeI() const;
 
-    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
-    void resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, Arguments & Args);
+    VCFRecord(const Contig & TheContig, faidx_t * Ref, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
+    void resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, double CC, Arguments & Args);
     std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;

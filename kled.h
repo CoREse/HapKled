@@ -23,12 +23,13 @@ struct Arguments {
 	int MinMappingQuality=20;
 	int MinTemplateLength=500;
 	int DelMinMaxMergeDis=500;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	int DelMaxMaxMergeDis=0;
 	double DelMaxMergePortion=0.2;
 	int CoverageWindowSize=100;
 	int InsClipTolerance=10;
 	int InsMaxGapSize=50000;
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
-	int ClusteringMaxMergeRange=20000;
+	int ClusteringMaxMergeRange=2000;
 	int ClusteringBatchSize=10000;
     float BrotherhoodTypeRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.5};//For SV Types
     int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={10,50,500,100};
@@ -37,29 +38,29 @@ struct Arguments {
 	bool AllCLR=false;
 	bool AllCCS=false;
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{3,1}//DEL
-	,{1,1}//INS
+	{{1,1}//DEL
+	,{0,1}//INS
 	,{0,2}//DUP
-	,{1,1}};//INV, only ST no SS
-	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.3},
-	{0.4,0.3},
-	{0.4,0.4},
-	{0.5,0.5}};
-	double LSDRSs[NumberOfSVTypes][2]={{80, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{65,90},
-	{95,90},
-	{55,90}};
-	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{3,1}//DEL
-	,{2,4}//INS
-	,{0,2}//DUP
-	,{1,1}};//INV, only ST no SS
-	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.2,0.2},
+	,{0,2}};//INV, only ST no SS
+	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.3,0.1},
 	{0.4,0.1},
 	{0.4,0.4},
+	{0.2,0.3}};
+	double LSDRSs[NumberOfSVTypes][2]={{0, 70},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{0,10},
+	{95,90},
+	{94,70}};
+	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
+	{{0,5}//DEL
+	,{0,5}//INS
+	,{0,2}//DUP
+	,{1,1}};//INV, only ST no SS
+	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.2,0},
+	{0.2,0},
+	{0.4,0.4},
 	{0.5,0.5}};
-	double CLRLSDRSs[NumberOfSVTypes][2]={{30, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{55,85},
+	double CLRLSDRSs[NumberOfSVTypes][2]={{65, 20},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{65,20},
 	{95,90},
 	{55,90}};
 	double CCSASSBases[NumberOfSVTypes][2]={{10,3},

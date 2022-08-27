@@ -6,11 +6,24 @@
 #include "input.h"
 #include "kled.h"
 
+// class Cluster
+// {
+//     public:
+//     std::vector<Signature> Signatures;
+//     int BaseStart, BaseEnd;//If a first layer cluster has more than a half signatures, this marks its signatures locations
+// };
+
+struct ClusterCore
+{
+    int Begin,End;
+    ClusterCore(int B=0,int E=0):Begin(B),End(E){}
+};
+
 float distance(const Signature &A, const Signature &B, bool Partial=true, float *PPD=NULL);
 int precisionLevel(const Signature &A);
 int bestPrecision(const Signature &A,const Signature &B);
 int worstPrecision(const Signature &A,const Signature &B);
-void clustering(std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, Stats BamStats, Arguments& Args);
-void simpleClustering(std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, Stats BamStats);//like jcrd and cuteSV
+void clustering(std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, std::vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args);
+// void simpleClustering(std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, Stats BamStats);//like jcrd and cuteSV
 
 #endif

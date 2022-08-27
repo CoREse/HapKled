@@ -14,8 +14,8 @@
 #define STRING(X) STRING_HELPER(X)
 #endif
 
-#define MIN(a,b) (a>b?b:a)
-#define MAX(a,b) (a>b?a:b)
+#define MIN(a,b) ((a)>(b)?(b):(a))
+#define MAX(a,b) ((a)>(b)?(a):(b))
 
 namespace cre
 {

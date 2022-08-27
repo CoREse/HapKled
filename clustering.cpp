@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <algorithm>
 #include <list>
+#include <set>
+#include <omp.h>
 using namespace std;
 using namespace cre;
 
@@ -118,7 +120,8 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
     if (CuteVer)
     {
         float MaxDis=200;
-        int MinSupport=10;
+        // int MinSupport=10;
+        int MinSupport=0;
         for (int i=0;i<SortedSignatures.size();++i)
         {
             if (SortedSignatures[i].Type==-1) continue;
@@ -140,33 +143,33 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
         }
         if (Clusters.size()>0 && Clusters.back().size()<MinSupport) Clusters.pop_back();
         //add dedup and length segment here
-        vector<vector<Signature>> OldCs=Clusters;
-        Clusters.clear();
-        for (int i=0;i< OldCs.size();++i)
-        {
-            keepLongestPerRead(OldCs[i]);
-            sort(OldCs[i].begin(),OldCs[i].end(),SigLengthLess);
-            if (OldCs[i].size()<10) continue;
-            double MeanLength=0;
-            for (int j=0;j<OldCs[i].size();++j)
-            {
-                MeanLength+=OldCs[i][j].Length;
-            }
-            MeanLength/=double(OldCs[i].size());
-            double Discrete=0.5*MeanLength;
-            Clusters.push_back(vector<Signature>());
-            Clusters.back().push_back(OldCs[i][0]);
-            int LastLen=OldCs[i][0].Length;
-            for (int j=1;j<OldCs[i].size();++j)
-            {
-                if (OldCs[i][j].Length-LastLen>Discrete)
-                {
-                    Clusters.push_back(vector<Signature>());
-                }
-                Clusters.back().push_back(OldCs[i][j]);
-                LastLen=OldCs[i][j].Length;
-            }
-        }
+        // vector<vector<Signature>> OldCs=Clusters;
+        // Clusters.clear();
+        // for (int i=0;i< OldCs.size();++i)
+        // {
+        //     keepLongestPerRead(OldCs[i]);
+        //     sort(OldCs[i].begin(),OldCs[i].end(),SigLengthLess);
+        //     if (OldCs[i].size()<10) continue;
+        //     double MeanLength=0;
+        //     for (int j=0;j<OldCs[i].size();++j)
+        //     {
+        //         MeanLength+=OldCs[i][j].Length;
+        //     }
+        //     MeanLength/=double(OldCs[i].size());
+        //     double Discrete=0.5*MeanLength;
+        //     Clusters.push_back(vector<Signature>());
+        //     Clusters.back().push_back(OldCs[i][0]);
+        //     int LastLen=OldCs[i][0].Length;
+        //     for (int j=1;j<OldCs[i].size();++j)
+        //     {
+        //         if (OldCs[i][j].Length-LastLen>Discrete)
+        //         {
+        //             Clusters.push_back(vector<Signature>());
+        //         }
+        //         Clusters.back().push_back(OldCs[i][j]);
+        //         LastLen=OldCs[i][j].Length;
+        //     }
+        // }
     }
     else
     {
@@ -210,7 +213,14 @@ void simpleClustering(vector<Signature> & SortedSignatures, vector<vector<Signat
     }
 }
 
-bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int ForceBrother=5)
+struct ClusterStats
+{
+    double ABegin,AEnd,ALength;
+    set<string> Templates;
+    ClusterStats():ABegin(0),AEnd(0),ALength(0),Templates(){}
+};
+
+bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int ForceBrother=5, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
 {
     // if (SupportedSV==3)//Inv
     // {
@@ -264,44 +274,136 @@ bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int Forc
     //     }
     //     return false;
     // }
+    if (A.TemplateName==B.TemplateName) return false;
+    Ratio=0.2;
     if (abs(A.Begin-B.Begin)<=ForceBrother && abs(A.End-B.End)<=ForceBrother) return true;
     int MinLength=min(A.Length,B.Length);
     if (abs(A.Begin-B.Begin)<=MinLength*Ratio && abs(A.End-B.End)<=MinLength*Ratio && abs(A.Length-B.Length)<=MinLength*Ratio) return true;
+    // if (abs(A.Begin-B.Begin)<=NearRange && abs(A.End-B.End)<=NearRange && abs(A.Length-B.Length)<=(MAX(5,MinLength*0.1))) return true;
     return false;
 }
 
-class Brotherhood
+bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float Ratio=0.1, int ForceBrother=5, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
+{
+    if (A[0].SupportedSV!=B[0].SupportedSV) return false;
+    NearRange=200;
+    if (A.size()==1 && B.size()==1)
+    {
+        if (abs(A[0].Length-B[0].Length)<ForceBrother && abs(A[0].Begin-B[0].Begin)<NearRange && abs(A[0].End-B[0].End)<NearRange) return true;
+        return false;
+    }
+    // double ABegin=0,AEnd=0,ALength=0,BBegin=0,BEnd=0,BLength=0;
+    const set<string> & ATemplates=AS->Templates;
+    // for (int i=0;i<A.size();++i)
+    // {
+    //     ABegin=(ABegin*i)/(i+1)+A[i].Begin/(double(i+1));
+    //     AEnd=(AEnd*i)/(i+1)+A[i].End/(double(i+1));
+    //     ALength=(ALength*i)/(i+1)+A[i].Length/(double(i+1));
+    //     ATemplates.insert(A[i].TemplateName);
+    // }
+    // for (int i=0;i<B.size();++i)
+    // {
+    //     if (ATemplates.count(B[i].TemplateName)!=0) return false;
+    //     BBegin=(BBegin*i)/(i+1)+B[i].Begin/(double(i+1));
+    //     BEnd=(BEnd*i)/(i+1)+B[i].End/(double(i+1));
+    //     BLength=(BLength*i)/(i+1)+B[i].Length/(double(i+1));
+    // }
+    double MeanLength=(AS->ALength+BS->ALength)/2.0;
+    double LengthDiff=30;
+    double LengthRatioDiff=0.5;
+    double MinSize=MIN(A.size(),B.size());
+    LengthDiff/=MinSize;
+    LengthRatioDiff/=MinSize;
+    if (abs(AS->ABegin-BS->ABegin)<NearRange && abs(AS->AEnd-BS->AEnd)<NearRange && (((abs(AS->ALength-MeanLength)/MeanLength)<LengthRatioDiff)||(abs(AS->ALength-BS->ALength)<LengthDiff))) 
+    {
+        for (int i=0;i<B.size();++i)
+        {
+            if (ATemplates.count(B[i].TemplateName)!=0) return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+inline int getSupportedSV(const vector<Signature> & Cluster)
+{
+    return Cluster[0].SupportedSV;
+}
+
+inline int getSupportedSV(const vector<vector<Signature>> & Cluster)
+{
+    return Cluster[0][0].SupportedSV;
+}
+
+void setValues(Signature & S, unsigned& MinBegin, unsigned& MaxBegin, unsigned& MinEnd, unsigned & MaxEnd, unsigned& SignatureCount, vector<ClusterStats>& CStats)
+{
+    MinBegin=S.Begin;
+    MaxBegin=S.Begin;
+    MinEnd=S.End;
+    MaxEnd=S.End;
+    SignatureCount=1;
+    CStats.push_back(ClusterStats());
+}
+
+void setValues(vector<Signature> & Ss, unsigned& MinBegin, unsigned& MaxBegin, unsigned& MinEnd, unsigned & MaxEnd, unsigned& SignatureCount, vector<ClusterStats>& CStats)
+{
+    ClusterStats CS;
+    MinBegin=Ss[0].Begin;
+    MaxBegin=Ss[0].Begin;
+    MinEnd=Ss[0].End;
+    MaxEnd=Ss[0].End;
+    for (int i=0;i<Ss.size();++i)
+    {
+        Signature & S=Ss[i];
+        MinBegin=MIN(MinBegin,S.Begin);
+        MaxBegin=MAX(MaxBegin,S.Begin);
+        MinEnd=MIN(MinEnd,S.End);
+        MaxEnd=MAX(MaxEnd,S.End);
+        CS.ABegin=(CS.ABegin*i)/(i+1)+Ss[i].Begin/(double(i+1));
+        CS.AEnd=(CS.AEnd*i)/(i+1)+Ss[i].End/(double(i+1));
+        CS.ALength=(CS.ALength*i)/(i+1)+Ss[i].Length/(double(i+1));
+        CS.Templates.insert(Ss[i].TemplateName);
+    }
+    CStats.push_back(CS);
+    SignatureCount=Ss.size();
+}
+
+template<typename T> class Brotherhood
 {
     public:
-    vector<Signature> Cluster;
+    vector<T> Cluster;
     bool CCS;
-    unsigned int MinBegin, MaxEnd;
+    unsigned int MinBegin, MaxBegin, MinEnd, MaxEnd, SignatureCount;
+    vector<ClusterStats> CStats;
     Brotherhood(bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {};
-    Brotherhood(Signature &S, bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {setCluster(S);};
-    void setCluster(Signature & S)
+    Brotherhood(T &S, bool IsCCS=false):Cluster(),MinBegin(0),MaxEnd(0),CCS(IsCCS) {setCluster(S);};
+    void setCluster(T & S)
     {
         Cluster.clear();
         Cluster.push_back(S);
-        MinBegin=S.Begin;
-        MaxEnd=S.End;
+        setValues(S,MinBegin, MaxBegin, MinEnd, MaxEnd, SignatureCount,CStats);
     }
-    bool canMerge(const Brotherhood & Other, Arguments &Args) const
+    bool canMerge(const Brotherhood<T> & Other, Arguments &Args) const
     {
-        int ForceBrother=Args.BrotherhoodTypeForceBrothers[Cluster[0].SupportedSV];
-        float Ratio=Args.BrotherhoodTypeRatios[Cluster[0].SupportedSV];
+        int SupportedSV=getSupportedSV(Cluster);
+        int ForceBrother=Args.BrotherhoodTypeForceBrothers[SupportedSV];
+        float Ratio=Args.BrotherhoodTypeRatios[SupportedSV];
         if (CCS)
         {
-            ForceBrother=Args.BrotherhoodCCSTypeForceBrothers[Cluster[0].SupportedSV];
-            Ratio=Args.BrotherhoodCCSTypeRatios[Cluster[0].SupportedSV];
+            ForceBrother=Args.BrotherhoodCCSTypeForceBrothers[SupportedSV];
+            Ratio=Args.BrotherhoodCCSTypeRatios[SupportedSV];
         }
+        int NearRange=500;
             // fprintf(stderr,"%d %d %d %d %d %d %d\n",Other.MinBegin-MaxEnd, Other.MinBegin, MaxEnd, MinBegin-Other.MaxEnd,MinBegin, Other.MaxEnd,Brotherhood::ForceBrother);
-        if (((Other.MinBegin>MaxEnd+ForceBrother) || ((MinBegin>Other.MaxEnd+ForceBrother)))) return false;
+        if (((Other.MinBegin>MaxEnd+ForceBrother+NearRange) || ((MinBegin>Other.MaxEnd+ForceBrother+NearRange)))) return false;
             // fprintf(stderr,"yes");
-        for (const Signature & A:Cluster)
+        for (int i=0;i<Cluster.size();++i)
         {
-            for (const Signature & B:Other.Cluster)
+            const T & A=Cluster[i];
+            for (int j=0;j<Other.Cluster.size();++j)
             {
-                if (isBrother(A,B,Ratio,ForceBrother))
+                const T & B=Other.Cluster[j];
+                if (isBrother(A,B,0.2,ForceBrother,NearRange,&(CStats[i]),&(Other.CStats[j])))
                 {
                     return true;
                 }
@@ -309,33 +411,40 @@ class Brotherhood
         }
         return false;
     }
-    bool merge(Brotherhood & Other, Arguments &Args)
+    bool merge(Brotherhood<T> & Other, Arguments &Args)
     {
         if (canMerge(Other,Args))
         {
-            for (Signature & B:Other.Cluster)
+            for (T & B:Other.Cluster)
             {
                 Cluster.push_back(B);
             }
             MinBegin=min(MinBegin,Other.MinBegin);
+            MaxBegin=MAX(MaxBegin,Other.MaxBegin);
+            MinEnd=MIN(MinEnd,Other.MinEnd);
             MaxEnd=max(MaxEnd,Other.MaxEnd);
+            SignatureCount+=Other.SignatureCount;
+            CStats.insert(CStats.end(),make_move_iterator(Other.CStats.begin()),make_move_iterator(Other.CStats.end()));
             return true;
         }
         return false;
     }
 };
 
-void brotherClusteringList(list<Brotherhood> &Brotherhoods, Arguments &Args)
+template<typename T> void brotherClusteringList(list<Brotherhood<T>> &Brotherhoods, Arguments &Args)
 {
+    int Round=0;
     while (1)
     {
-        Brotherhoods.sort([](Brotherhood & a, Brotherhood &b)-> bool {return a.MinBegin<b.MinBegin;});
+        // fprintf(stderr,"Round%d: %lu\n",Round,Brotherhoods.size());
+        ++Round;
+        Brotherhoods.sort([](Brotherhood<T> & a, Brotherhood<T> &b)-> bool {return a.MinBegin<b.MinBegin;});
         bool Next=false;
-        for (list<Brotherhood>::iterator Ai=Brotherhoods.begin();Ai!=Brotherhoods.end();++Ai)
+        for (auto Ai=Brotherhoods.begin();Ai!=Brotherhoods.end();++Ai)
         {
-            for (list<Brotherhood>::iterator Bi=next(Ai);Bi!=Brotherhoods.end();++Bi)
+            for (auto Bi=next(Ai);Bi!=Brotherhoods.end();++Bi)
             {
-                if (Ai->MinBegin+Args.ClusteringMaxMergeRange<Bi->MinBegin) break;
+                if (Ai->MaxEnd+MIN(Args.ClusteringMaxMergeRange,0.5*(Ai->MaxEnd-Ai->MinBegin))<Bi->MinBegin) break;
                 if (Ai->merge(*Bi,Args))
                 {
                     Brotherhoods.erase(Bi);
@@ -346,46 +455,662 @@ void brotherClusteringList(list<Brotherhood> &Brotherhoods, Arguments &Args)
         }
         if (!Next) break;
     }
+    Brotherhoods.sort([](Brotherhood<T> & a, Brotherhood<T> &b)-> bool {return a.MinBegin<b.MinBegin;});
 }
 
-void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments &Args)
+template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherhood<T>>& Brotherhoods, Stats BamStats, Arguments &Args)
 {
-    list<Brotherhood> Brotherhoods;
-    if (Args.ThreadN==1 || SortedSignatures.size()<=Args.ClusteringBatchSize*1.1)
+    if (Args.ThreadN==1 || SortedTs.size()<=Args.ClusteringBatchSize*1.1)
     {
-        for (Signature & S:SortedSignatures) Brotherhoods.push_back(Brotherhood(S,Args.AllCCS));
+        for (T & S:SortedTs) Brotherhoods.push_back(Brotherhood<T>(S,Args.AllCCS));
         brotherClusteringList(Brotherhoods,Args);
     }
     else
     {
-        vector<list<Brotherhood>> BatchBrotherhoods;
-        for (int i=0;i<SortedSignatures.size();++i)
+        vector<list<Brotherhood<T>>> BatchBrotherhoods;
+        for (int i=0;i<SortedTs.size();++i)
         {
-            if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood>());
-            BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood(SortedSignatures[i],Args.AllCCS));
+            if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood<T>>());
+            BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood<T>(SortedTs[i],Args.AllCCS));
         }
         #pragma omp parallel for
         for (int i=0;i<BatchBrotherhoods.size();++i)
         {
             brotherClusteringList(BatchBrotherhoods[i],Args);
         }
+        // for (int i=0;i<BatchBrotherhoods.size();++i)
+        // {
+        //     Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
+        // }
+        // brotherClusteringList(Brotherhoods,Args);
+        vector<list<Brotherhood<T>>> Edges;
+        for (int i=0;i<BatchBrotherhoods.size()-1;++i)
+        {
+            int Left,Right;
+            Left=BatchBrotherhoods[i+1].front().MinBegin-Args.ClusteringMaxMergeRange;
+            Right=BatchBrotherhoods[i].back().MaxBegin+Args.ClusteringMaxMergeRange;
+            auto LeftMost=BatchBrotherhoods[i].begin();
+            if (i!=0) advance(LeftMost,unsigned(BatchBrotherhoods[i].size()/2.0));
+            auto RightMost=BatchBrotherhoods[i+1].end();
+            if (i+1!=BatchBrotherhoods.size()-1)
+            {
+                RightMost=BatchBrotherhoods[i+1].begin();
+                advance(RightMost,unsigned(BatchBrotherhoods[i+1].size()/2.0));
+            }
+            Edges.push_back(list<Brotherhood<T>>());
+            typename list<Brotherhood<T>>::iterator LeftIter=BatchBrotherhoods[i].end();
+            --LeftIter;
+            typename list<Brotherhood<T>>::iterator RightIter=BatchBrotherhoods[i+1].begin();
+            for (;LeftIter!=LeftMost;--LeftIter)
+            {
+                if (LeftIter->MaxBegin<Left) break;
+                if (LeftIter==LeftMost)
+                {
+                    if (i!=0 && !(LeftIter->MaxBegin<Left))
+                    fprintf(stderr,"Risk of not fully clustered detected.\n");//Change batch size to sig count related to avoid? Or, can be avoided by extend the boundaries. The influence is trivial, so it's not urgent to solve it.
+                    break;
+                }
+            }
+            for (;RightIter!=RightMost;++RightIter)
+            {
+                if (RightIter->MinBegin>Right) break;
+            }
+            if (RightIter==RightMost && i+1!=BatchBrotherhoods.size()-1)
+            fprintf(stderr,"Risk of not fully clustered detected.\n");
+            Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i],LeftIter,BatchBrotherhoods[i].end());
+            Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i+1],BatchBrotherhoods[i+1].begin(),RightIter);
+            // Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
+        }
+        #pragma omp parallel for
+        for (int i=0;i<Edges.size();++i)
+        {
+            brotherClusteringList(Edges[i],Args);
+        }
         for (int i=0;i<BatchBrotherhoods.size();++i)
         {
             Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
         }
-        brotherClusteringList(Brotherhoods,Args);
+        for (int i=0;i<Edges.size();++i)
+        {
+            Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(Edges[i].begin()),make_move_iterator(Edges[i].end()));
+        }
+        Brotherhoods.sort([](Brotherhood<T> & a, Brotherhood<T> &b)-> bool {return a.MinBegin<b.MinBegin;});
     }
-    for (Brotherhood& B :Brotherhoods)
+}
+
+void brotherClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments &Args)
+{
+    list<Brotherhood<Signature>> Brotherhoods;
+    brotherClustering(SortedSignatures,Brotherhoods,BamStats,Args);
+    for (Brotherhood<Signature>& B :Brotherhoods)
     {
         Clusters.push_back(B.Cluster);
     }
 }
 
-void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
+//May duplicate some signatures.
+void fitInClusters(vector<vector<Signature>> &Clusters, vector<Signature> & OtherSignatures, vector<Signature> &Leftovers, Arguments& Args)
+{
+    vector<bool> Merged;
+    for (int i=0;i<OtherSignatures.size();++i) Merged.push_back(false);
+    for (vector<Signature>& Cluster : Clusters)
+    {
+        int ForceBrother=Args.BrotherhoodTypeForceBrothers[Cluster[0].SupportedSV];
+        float Ratio=Args.BrotherhoodTypeRatios[Cluster[0].SupportedSV];
+        double ClusterSize=Cluster.size();
+        double SupportedBrother=0;
+        for (int i=0;i<OtherSignatures.size();++i)
+        {
+            SupportedBrother=0;
+            for (const Signature & s: Cluster)
+            {
+                if (isBrother(s, OtherSignatures[i],Ratio,ForceBrother))
+                {
+                    SupportedBrother+=1;
+                    if (SupportedBrother/ClusterSize>=0.8)
+                    {
+                        Cluster.push_back(OtherSignatures[i]);
+                        Merged[i]=true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    for (int i=0;i<OtherSignatures.size();++i)
+    {
+        if (!Merged[i]) Leftovers.push_back(OtherSignatures[i]);
+    }
+}
+
+void batchClustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
+{
+    vector<Signature> BaseSignatures,OtherSignatures;
+    vector<double> Qualities;
+    for (int i=0;i<SortedSignatures.size();++i)
+    {
+        Qualities.push_back(SortedSignatures[i].Quality);
+    }
+    sort(Qualities.data(),Qualities.data()+Qualities.size());
+    double Quantile=0;
+    if (Qualities.size()!=0) Quantile=Qualities[int(Qualities.size()*0.2)];
+    for (int i=0;i<SortedSignatures.size();++i)
+    {
+        if (SortedSignatures[i].Quality>=Quantile) BaseSignatures.push_back(SortedSignatures[i]);
+        else OtherSignatures.push_back(SortedSignatures[i]);
+    }
+    brotherClustering(BaseSignatures,Clusters,BamStats,Args);
+    vector<Signature> Leftovers;
+    fitInClusters(Clusters, OtherSignatures, Leftovers, Args);
+    fprintf(stderr, "Quantile: %lf, Base: %ld, Other: %ld, Leftover: %ld\n",Quantile, BaseSignatures.size(),OtherSignatures.size(),Leftovers.size());
+    // brotherClustering(Leftovers,Clusters,BamStats,Args);
+}
+
+
+void mergeClusters(vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
+{
+    // vector<vector<vector<Signature>>> CClusters;
+    // for (int i=0;i<Clusters.size();++i)
+    // {
+    //     vector<vector<Signature>> C;
+    //     C.push_back(Clusters[i]);
+    //     CClusters.push_back(C);
+    // }
+    // for (int i=0;i<CClusters.size();++i)
+    // {
+    //     if (CClusters[i].size()==0) continue;
+    //     for (int j=0;j<Clusters.size();++j)
+    //     {
+    //         if (j==i) continue;
+    //         if (CClusters[j].size()==0) continue;
+    //         bool Merged=false;
+    //         for (int k=0;k<CClusters[i].size();++k)
+    //         {
+    //             if (Merged) break;
+    //             for (int m=0;m<CClusters[j].size();++m)
+    //             if(clustersCanMerge(CClusters[i][k],CClusters[j][m]))
+    //             {
+    //                 CClusters[i].insert(CClusters[i].end(),make_move_iterator(CClusters[j].begin()),make_move_iterator(CClusters[j].end()));
+    //                 if(CClusters[j].size()!=0) CClusters[j].clear();
+    //                 Merged=true;
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
+    // Clusters.clear();
+    // for (int i=0;i<CClusters.size();++i)
+    // {
+    //     if (CClusters[i].size()!=0)
+    //     {
+    //         Clusters.push_back(CClusters[i][0]);
+    //         for (int j=1;j<CClusters[i].size();++j)
+    //         {
+    //             Clusters[Clusters.size()-1].insert(Clusters[Clusters.size()-1].end(),make_move_iterator(CClusters[i][j].begin()),make_move_iterator(CClusters[i][j].end()));
+    //         }
+    //     }
+    // }
+    for (int i=0;i<Clusters.size();++i)
+    {
+        if (Clusters[i].size()==0) continue;
+        for (int j=0;j<Clusters.size();++j)
+        {
+            if (j==i) continue;
+            if (Clusters[j].size()==0) continue;
+            if(isBrother(Clusters[i],Clusters[j]))
+            {
+                Clusters[i].insert(Clusters[i].end(),make_move_iterator(Clusters[j].begin()),make_move_iterator(Clusters[j].end()));
+                if(Clusters[j].size()!=0) Clusters[j].clear();
+            }
+        }
+    }
+}
+
+inline void addSigMap(unordered_map<string,list<list<Brotherhood<Signature>>::iterator>> &PotentialMerges, list<Brotherhood<Signature>>::iterator & Iter)
+{
+    if (PotentialMerges.count(Iter->Cluster[0].TemplateName)==0) PotentialMerges[Iter->Cluster[0].TemplateName]=list<list<Brotherhood<Signature>>::iterator>();
+    list<list<Brotherhood<Signature>>::iterator>& TheList=PotentialMerges[Iter->Cluster[0].TemplateName];
+    TheList.push_back(Iter);
+    // TheList.splice(TheList.end(),SignatureBrotherhoods,Iter);
+    // Iter=PreviousIter;
+}
+
+inline void addSigMap(unordered_map<string,list<list<Signature>::iterator>> &PotentialMerges, list<Signature>::iterator & Iter)
+{
+    if (PotentialMerges.count(Iter->TemplateName)==0) PotentialMerges[Iter->TemplateName]=list<list<Signature>::iterator>();
+    list<list<Signature>::iterator>& TheList=PotentialMerges[Iter->TemplateName];
+    TheList.push_back(Iter);
+    // TheList.splice(TheList.end(),SignatureBrotherhoods,Iter);
+    // Iter=PreviousIter;
+}
+
+inline unsigned getBegin(list<list<Brotherhood<Signature>>::iterator>::iterator & Iter)
+{
+    return (*Iter)->MinBegin;
+}
+
+inline unsigned getEnd(list<list<Brotherhood<Signature>>::iterator>::iterator & Iter)
+{
+    return (*Iter)->MaxEnd;
+}
+
+inline unsigned getBegin(list<Brotherhood<Signature>>::iterator & Iter)
+{
+    return Iter->MinBegin;
+}
+
+inline unsigned getEnd(list<Brotherhood<Signature>>::iterator & Iter)
+{
+    return Iter->MaxEnd;
+}
+
+inline unsigned getBegin(list<list<Signature>::iterator>::iterator & Iter)
+{
+    return (*Iter)->Begin;
+}
+
+inline unsigned getEnd(list<list<Signature>::iterator>::iterator & Iter)
+{
+    return (*Iter)->End;
+}
+
+inline unsigned getBegin(list<Signature>::iterator & Iter)
+{
+    return Iter->Begin;
+}
+
+inline unsigned getEnd(list<Signature>::iterator & Iter)
+{
+    return Iter->End;
+}
+
+inline unsigned getSupportedSV(const list<list<Brotherhood<Signature>>::iterator>::iterator & Iter)
+{
+    return (*Iter)->Cluster[0].SupportedSV;
+}
+
+inline unsigned getSupportedSV(const list<list<Signature>::iterator>::iterator & Iter)
+{
+    return (*Iter)->SupportedSV;
+}
+
+inline unsigned getSupportedSV(const list<Signature>::iterator & Iter)
+{
+    return Iter->SupportedSV;
+}
+
+//All Brotherhoods in Sigs have only one Signature.
+//Can be DP optimized.
+template<typename TypeIterType> bool BestFit(list<TypeIterType> &Sigs, double Begin, double End, typename list<TypeIterType>::iterator &FitBegin, typename list<TypeIterType>::iterator &FitEnd, unsigned &FitLength)
+{
+    int SupportedSV=getSupportedSV(Sigs.begin());
+    int MaxBeginDiff=1000000;
+    double LengthEndureMin=10;
+    double LengthEndureRatio=0.1;
+    if (SupportedSV==1)
+    {
+        MaxBeginDiff=200;
+        LengthEndureRatio=1.0;
+    }
+    double Length=End-Begin;
+    double LengthMin=MIN(Length-LengthEndureMin,Length*(1.0-LengthEndureRatio));
+    double LengthMax=MAX(Length+LengthEndureMin,Length*(1.0+LengthEndureRatio));
+    Sigs.sort([](TypeIterType & a, TypeIterType &b)-> bool {return getBegin(a)<getBegin(b);});
+    unsigned MinDiff=0xffffffff;
+    unsigned MinDiffMergeCount=0;
+    unsigned MergeCount=0;
+    for (auto Iter=Sigs.begin();Iter!=Sigs.end();++Iter)
+    {
+        double LengthAdd=getEnd(Iter)-getBegin(Iter);
+        double ThisBegin=getBegin(Iter);
+        double ThisEnd=getEnd(Iter);
+        MergeCount=1;
+        for (auto Jter=Iter;Jter!=Sigs.end();++Jter)
+        {
+            if (Jter==Iter) continue;
+            if (abs(getBegin(Jter)-ThisBegin)<MaxBeginDiff)
+            {
+                if (getBegin(Jter)>ThisBegin) break;
+                continue;
+            }
+            LengthAdd+=getEnd(Jter)-getBegin(Jter);
+            ThisEnd=ThisBegin+LengthAdd;
+            ++MergeCount;
+            if (LengthAdd>=LengthMin && LengthAdd<=LengthMax)
+            {
+                unsigned Diff=ThisBegin-Begin+ThisEnd-End;
+                if (Diff<MinDiff)
+                {
+                    MinDiff=Diff;
+                    MinDiffMergeCount=MergeCount;
+                    FitBegin=Iter;
+                    FitEnd=Jter;
+                    FitLength=LengthAdd;
+                    ++FitEnd;
+                }
+            }
+        }
+    }
+    if (MinDiff<200) return true;
+    return false;
+}
+
+void mergeAdjacent(list<Brotherhood<Signature>> &SignatureBrotherhoods, Arguments & Args)//deprecated
+{
+    int Range=500;
+    int MaxMergeLength=2000000;
+    list<Brotherhood<Signature>> MergeCandidates;
+    for (auto Iter=SignatureBrotherhoods.begin();Iter!=SignatureBrotherhoods.end();++Iter)
+    {
+        if ((Iter->MinEnd-Iter->MinBegin)<=MaxMergeLength)
+        {
+            list<Brotherhood<Signature>>::iterator PreviousIter=Iter;
+            --PreviousIter;
+            MergeCandidates.splice(MergeCandidates.end(),SignatureBrotherhoods,Iter);
+            Iter=PreviousIter;
+        }
+    }
+    fprintf(stderr,"Brotherhoods:%lu , merge candidates:%lu\n",SignatureBrotherhoods.size()+MergeCandidates.size(),MergeCandidates.size());
+    list<Brotherhood<Signature>> NewBros;
+    unsigned Merged=0;
+    for (auto Iter=MergeCandidates.begin();Iter!=MergeCandidates.end();++Iter)
+    {
+        if ((Iter->MinEnd-Iter->MinBegin)<50) continue;
+        unsigned SearchLeft=Iter->MinBegin-Range;
+        unsigned SearchRight=Iter->MaxEnd+Range;
+        unordered_map<string,list<list<Brotherhood<Signature>>::iterator>> PotentialMerges;
+        for (auto Jter=Iter;Jter!=MergeCandidates.end();++Jter)
+        {
+            if (Jter==Iter) continue;
+            if (Jter->MinBegin>SearchRight) break;
+            if (Jter->SignatureCount==1)
+            {
+                // list<Brotherhood<Signature>>::iterator PreviousIter=Jter;
+                // --PreviousIter;
+                // addSigMap(PotentialMerges,MergeCandidates,Jter,PreviousIter);
+                addSigMap(PotentialMerges,Jter);
+            }
+        }
+        for (auto Jter=Iter;true;--Jter)
+        {
+            if (Jter==Iter)
+            {
+                if (Jter==MergeCandidates.begin()) break;
+                continue;
+            }
+            if (Jter->MinBegin<SearchLeft) break;
+            if (Jter->SignatureCount==1)
+            {
+                addSigMap(PotentialMerges,Jter);
+            }
+            if (Jter==MergeCandidates.begin()) break;
+        }
+        list<list<Brotherhood<Signature>>::iterator>::iterator FitBegin, FitEnd;
+        unsigned FitLength;
+        for (auto mi=PotentialMerges.begin();mi!=PotentialMerges.end();++mi)
+        {
+            if (BestFit(mi->second,Iter->MinBegin,Iter->MinEnd,FitBegin,FitEnd,FitLength))
+            {
+                Signature NewSig((*FitBegin)->Cluster[0]);
+                NewSig.End=NewSig.Begin+FitLength;
+                NewSig.Length=FitLength;
+                if (NewSig.SupportedSV==1)
+                {
+                    NewSig.InsBases="";
+                }
+                for (auto I=FitBegin;I!=FitEnd;++I)
+                {
+                    NewSig.InsBases+=(*I)->Cluster[0].InsBases;
+                    MergeCandidates.erase((*I));
+                }
+                Brotherhood<Signature> NewBro(NewSig,(*FitBegin)->CCS);
+                if (!Iter->merge(NewBro,Args))
+                {
+                    NewBros.push_back(NewBro);
+                }
+                else
+                {
+                    ++Merged;
+                }
+                // mi->second.erase(FitBegin,FitEnd);
+            }
+        }
+        // for (auto mi=PotentialMerges.begin();mi!=PotentialMerges.end();++mi)
+        // {
+        //     NewBros.splice(NewBros.end(),mi->second);
+        // }
+    }
+    fprintf(stderr,"NewBros:%lu, Merged:%lu\n",NewBros.size(),Merged);
+    MergeCandidates.splice(MergeCandidates.end(),NewBros);
+    SignatureBrotherhoods.splice(SignatureBrotherhoods.end(),MergeCandidates);
+    SignatureBrotherhoods.sort([](Brotherhood<Signature> & a, Brotherhood<Signature> &b)-> bool {return a.MinBegin<b.MinBegin;});
+}
+
+//Merge adjacent sigs that not clustered in the first clustering and add to brotherhoods for the next step
+//Will change ClusteredBrotherhoods. Will not change SortedSignatures.
+void genMergedSigs(list<Brotherhood<Signature>> &ClusteredBrotherhoods, vector<Signature> & SortedSignatures, int *ClusterCount, Stats BamStats, Arguments & Args)
+{
+    for (Brotherhood<Signature>& C : ClusteredBrotherhoods)
+    {
+        for (int i=0;i<C.Cluster.size();++i) ClusterCount[C.Cluster[i].ID]=C.Cluster.size();
+    }
+    unordered_map<string,vector<vector<Signature>::iterator>> TemplateSigs;
+    vector<Signature> Sigs=SortedSignatures;
+    int SupportedSV=Sigs[0].SupportedSV;
+    for (int i=0;i<SortedSignatures.size();++i)
+    {
+        if (ClusterCount[SortedSignatures[i].ID]>1) continue;
+        if (TemplateSigs.count(SortedSignatures[i].TemplateName)==0) TemplateSigs[SortedSignatures[i].TemplateName]=vector<vector<Signature>::iterator>();
+        TemplateSigs[SortedSignatures[i].TemplateName].push_back(SortedSignatures.begin()+i);
+    }
+    if (SupportedSV!=1)
+    {
+        int Endurance=200;
+        for (auto mi=TemplateSigs.begin();mi!=TemplateSigs.end();++mi)
+        {
+            sort(mi->second.begin(),mi->second.end(),[](vector<Signature>::iterator & a, vector<Signature>::iterator &b)-> bool {return a->Begin<b->Begin;});
+            int NewBegin=mi->second[0]->Begin;
+            int Merged=0;
+            string NewInsBases="";
+            for (int i=1;i<mi->second.size();++i)
+            {
+                Signature &Former=*mi->second[i-1];
+                Signature &Latter=*mi->second[i];
+                if (Latter.Begin>=Former.End && Latter.Begin<Former.End+Endurance)
+                {
+                    ++Merged;
+                    NewInsBases+=Latter.InsBases;
+                }
+                else
+                {
+                    Signature NewSig(Latter.Type,Latter.Tech,Latter.SupportedSV,NewBegin,Latter.End,Latter.TemplateName,Latter.Quality,NewInsBases.c_str());
+                    NewSig.Artificial=true;
+                    if (Merged>0) Sigs.push_back(NewSig);
+                    Merged=0;
+                    NewInsBases="";
+                    NewBegin=Latter.Begin;
+                }
+            }
+        }
+    }
+    else
+    {
+        int Endurance=200;
+        for (auto mi=TemplateSigs.begin();mi!=TemplateSigs.end();++mi)
+        {
+            sort(mi->second.begin(),mi->second.end(),[](vector<Signature>::iterator & a, vector<Signature>::iterator &b)-> bool {return a->Begin<b->Begin;});
+            int NewBegin=mi->second[0]->Begin;
+            int Merged=0;
+            string NewInsBases="";
+            for (int i=1;i<mi->second.size();++i)
+            {
+                Signature &Former=*mi->second[i-1];
+                Signature &Latter=*mi->second[i];
+                if (Latter.Begin>=NewBegin && Latter.Begin<NewBegin+Endurance)
+                {
+                    ++Merged;
+                    NewInsBases+=Latter.InsBases;
+                }
+                else
+                {
+                    Signature NewSig(Latter.Type,Latter.Tech,Latter.SupportedSV,NewBegin,NewBegin+NewInsBases.length(),Latter.TemplateName,Latter.Quality,NewInsBases.c_str());
+                    NewSig.Artificial=true;
+                    if (Merged>0) Sigs.push_back(NewSig);
+                    Merged=0;
+                    NewInsBases="";
+                    NewBegin=Latter.Begin;
+                }
+            }
+        }
+
+    }
+    sort(Sigs.begin(),Sigs.end(),[](Signature& a, Signature&b)-> bool {return a.Begin<b.Begin;});
+    ClusteredBrotherhoods.clear();
+    brotherClustering(Sigs,ClusteredBrotherhoods,BamStats,Args);
+}
+
+bool allArti(Brotherhood<Signature> &B)
+{
+    for (Signature & s : B.Cluster)
+    {
+        if (!s.Artificial) return false;
+    }
+    return true;
+}
+
+void mergeAdjacent(list<Brotherhood<Signature>> &ClusteredBrotherhoods, vector<Signature> & SortedSignatures, Stats BamStats, Arguments & Args)
+{
+    int Range=500;
+    int MaxMergeLength=2000;
+    int MinKeep=1;
+    int CanMergeMaxClusterCount=5;
+    
+    int ClusterCount[SortedSignatures.size()];
+    genMergedSigs(ClusteredBrotherhoods,SortedSignatures,ClusterCount,BamStats,Args);
+
+    list<Brotherhood<Signature>> MergeCandidates;
+    for (auto Iter=ClusteredBrotherhoods.begin();Iter!=ClusteredBrotherhoods.end();++Iter)
+    {
+        if ((Iter->MinEnd-Iter->MinBegin)<=MaxMergeLength)
+        {
+            list<Brotherhood<Signature>>::iterator PreviousIter=Iter;
+            --PreviousIter;
+            MergeCandidates.splice(MergeCandidates.end(),ClusteredBrotherhoods,Iter);
+            Iter=PreviousIter;
+        }
+    }
+    
+    list<Signature> Sigs, NewSigs;
+    for (int i=0;i<SortedSignatures.size();++i) Sigs.push_back(SortedSignatures[i]);
+    
+    list<Signature>::iterator SearchBegin=Sigs.begin();
+    for (auto Iter=MergeCandidates.begin();Iter!=MergeCandidates.end();++Iter)
+    {
+        if ((Iter->MinEnd-Iter->MinBegin)<50) continue;
+        unsigned SearchLeft=Iter->MinBegin-Range;
+        unsigned SearchRight=Iter->MaxEnd+Range;
+        unordered_map<string,list<list<Signature>::iterator>> PotentialMerges;
+        for (auto Jter=SearchBegin;Jter!=Sigs.end();++Jter)
+        {
+            if (Jter->Begin>SearchRight) break;
+            if (Jter->Begin<SearchLeft)
+            {
+                SearchBegin=Jter;
+                continue;
+            }
+            if (ClusterCount[Jter->ID]>CanMergeMaxClusterCount) continue;
+            addSigMap(PotentialMerges,Jter);
+        }
+        list<list<Signature>::iterator>::iterator FitBegin, FitEnd;
+        unsigned FitLength;
+        vector<tuple<list<list<Signature>::iterator>::iterator,list<list<Signature>::iterator>::iterator,unsigned>> Fits;
+        for (auto mi=PotentialMerges.begin();mi!=PotentialMerges.end();++mi)
+        {
+            if (BestFit(mi->second,Iter->MinBegin,Iter->MinEnd,FitBegin,FitEnd,FitLength))
+            {
+                Fits.push_back(make_tuple(FitBegin,FitEnd,FitLength));
+            }
+        }
+        if (Fits.size()<MinKeep+allArti(*Iter)?1:0) continue;
+        for (auto Fit : Fits)
+        {
+            FitLength=get<2>(Fit);
+            FitBegin=get<0>(Fit);
+            FitEnd=get<1>(Fit);
+            Signature NewSig((*(*FitBegin)));
+            NewSig.End=NewSig.Begin+FitLength;
+            NewSig.Length=FitLength;
+            if (NewSig.SupportedSV==1)
+            {
+                NewSig.InsBases="";
+            }
+            for (auto I=FitBegin;I!=FitEnd;++I)
+            {
+                NewSig.InsBases+=(*I)->InsBases;
+                if (*I==SearchBegin)
+                {
+                    ++SearchBegin;
+                }
+                Sigs.erase((*I));
+            }
+            NewSigs.push_back(NewSig);
+        }
+    }
+    fprintf(stderr,"NewSigs:%lu\n",NewSigs.size());
+    Sigs.splice(Sigs.end(),NewSigs);
+    Sigs.sort([](Signature & a, Signature &b)-> bool {return a.Begin<b.Begin;});
+    SortedSignatures.clear();
+    for (Signature & S : Sigs) SortedSignatures.push_back(S);
+    
+    ClusteredBrotherhoods.splice(ClusteredBrotherhoods.end(),MergeCandidates);
+    ClusteredBrotherhoods.sort([](Brotherhood<Signature> & a, Brotherhood<Signature> &b)-> bool {return a.MinBegin<b.MinBegin;});
+}
+
+void brotherClustering2(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments &Args)
+{
+    fprintf(stderr,"First layer clustering... %lu %lu:\n",SortedSignatures.size(), Clusters.size());
+    list<Brotherhood<Signature>> SignatureBrotherhoods;
+    brotherClustering(SortedSignatures,SignatureBrotherhoods,BamStats,Args);
+    // mergeAdjacent(SignatureBrotherhoods,Args);
+    mergeAdjacent(SignatureBrotherhoods,SortedSignatures,BamStats,Args);
+    SignatureBrotherhoods.clear();
+    brotherClustering(SortedSignatures,SignatureBrotherhoods,BamStats,Args);
+    for (Brotherhood<Signature>& B :SignatureBrotherhoods)
+    {
+        Clusters.push_back(B.Cluster);
+    }
+    list<Brotherhood<vector<Signature>>> ClusterBrotherhoods;
+    fprintf(stderr,"Second layer clustering... %lu %lu:\n",SortedSignatures.size(), Clusters.size());
+    brotherClustering(Clusters, ClusterBrotherhoods,BamStats,Args);
+    Clusters.clear();
+    for (Brotherhood<vector<Signature>>& B :ClusterBrotherhoods)
+    {
+        int BiggestSize=0, BiggestBegin=0, BiggestEnd=0, FullSize=0;
+        for (int i=0;i<B.Cluster.size();++i)
+        {
+            if (BiggestSize<B.Cluster[i].size())
+            {
+                BiggestSize=B.Cluster[i].size();
+                BiggestBegin=FullSize;
+                BiggestEnd=BiggestBegin+BiggestSize;
+            }
+            FullSize+=B.Cluster[i].size();
+            if (i==0) Clusters.push_back(B.Cluster[i]);
+            else Clusters[Clusters.size()-1].insert(Clusters[Clusters.size()-1].end(),make_move_iterator(B.Cluster[i].begin()),make_move_iterator(B.Cluster[i].end()));
+        }
+        if (BiggestSize>=FullSize*0.7) Cores.push_back(ClusterCore(BiggestBegin,BiggestEnd));
+        else Cores.push_back(ClusterCore());
+    }
+}
+
+void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args)
 {
     // fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
-    brotherClustering(SortedSignatures,Clusters,BamStats,Args);
-    // simpleClustering(SortedSignatures,Clusters,BamStats);
-    // fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());
+    // batchClustering(SortedSignatures,Clusters,BamStats,Args);
+    // brotherClustering(SortedSignatures,Clusters,BamStats,Args);
+    brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
+    // mergeClusters(Clusters,BamStats,Args);
+    // simpleClustering(SortedSignatures,Clusters,BamStats,true);
+    fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());
     // for (int i=0;i<Clusters.size();++i) fprintf(stderr, "%d\n",Clusters[i].size());
 }

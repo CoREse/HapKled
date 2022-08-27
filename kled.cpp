@@ -121,6 +121,7 @@ int main(int argc, const char* argv[])
     OH.addOpt('q', 0, 1, "Quality", "Minimum mapping quality. (20)",'i',&(Args.MinMappingQuality));
     OH.addOpt('l', 0, 1, "Length", "Minimum template length. (500)",'i',&(Args.MinTemplateLength));
     OH.addOpt('d', 0, 1, "Distance", "Minimum max merge distance of signature merging during CIGAR signature collection. (500)",'i',&(Args.DelMinMaxMergeDis));
+    OH.addOpt('D', 0, 1, "Distance", "Maximum max merge distance of signature merging during CIGAR signature collection. (500)",'i',&(Args.DelMaxMaxMergeDis));
     OH.addOpt('p', 0, 1, "Portion", "Max merge portion of signature merging during CIGAR signature collection. (0.2)",'F',&(Args.DelMaxMergePortion));
     OH.addOpt('c', 0, 1, "Size", "Coverage window size. (100)",'i',&(Args.CoverageWindowSize));
     OH.addOpt('M', 0, 1, "Size", "Max cluster size, will resize to this value if a cluster is larger than this. (1000)",'i',&(Args.MaxClusterSize));
@@ -199,6 +200,7 @@ int main(int argc, const char* argv[])
 	unsigned ProcessedLength=0;
 	// FILE * WindowsFile=fopen("/home/cre/workspace/kled/data/wins.txt","wb");
 	updateTime("Getting stats", "Starting calling...");
+	unsigned int SVCounts[NumberOfSVTypes];for (int i=0;i<NumberOfSVTypes;++i) SVCounts[i]=0;
 	for (int i=0;i<NSeq;++i)
 	{
 		if (Args.CallingContigs.size()!=0)
@@ -293,14 +295,21 @@ int main(int argc, const char* argv[])
 		// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
 		updateTime("Getting signatures","Clustering...");
 		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
+		vector<ClusterCore> SignatureTypeClusterCores[NumberOfSVTypes];
 		for (int k=0;k<NumberOfSVTypes;++k)
 		{
 			sortAndDeDup(ContigTypeSignatures[k]);
-			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],AllStats[i],Args);
+			for (unsigned d=0;d<ContigTypeSignatures[k].size();++d) ContigTypeSignatures[k][d].setID(d);
+			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],SignatureTypeClusterCores[k],AllStats[i],Args);
 		}
 		updateTime("Clustering","Generating results...");
 		vector<vector<Signature>> SignatureClusters;
-		for (int k=0;k<NumberOfSVTypes;++k) SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
+		vector<ClusterCore> SignatureClusterCores;
+		for (int k=0;k<NumberOfSVTypes;++k)
+		{
+			SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
+			SignatureClusterCores.insert(SignatureClusterCores.end(),make_move_iterator(SignatureTypeClusterCores[k].begin()),make_move_iterator(SignatureTypeClusterCores[k].end()));
+		}
 		
 		totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0;
 		for (int m=0;m<SignatureClusters.size();++m)
@@ -338,18 +347,20 @@ int main(int argc, const char* argv[])
 		for (int j=0;j<SignatureClusters.size();++j)
 		{
 			// ++Times[omp_get_thread_num()];
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j], AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+			if (SignatureClusters[j].size()==0) continue;
+			ClusterCore Core;
+			if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
+			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 		}
 		updateTime("Results generation","Sorting results...");
 		sort(Records.data(),Records.data()+Records.size());
 		// Records.sort();
 		updateTime("Results sorting","Outputing results...");
-		unsigned int SVCounts[NumberOfSVTypes];for (int i=0;i<NumberOfSVTypes;++i) SVCounts[i]=0;
 		for (auto r: Records)
 		{
 			if (!r.Keep) continue;
 			// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-			r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()],Args);
+			r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
 			++SVCounts[r.getSVTypeI()];
 			printf("\n%s",string(r).c_str());
 		}

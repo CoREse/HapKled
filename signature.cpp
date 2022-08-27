@@ -6,14 +6,14 @@ using namespace std;
 
 Signature::Signature()
 {}
-Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, const char * InsBases)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Length(End-Begin), InsBases(InsBases), InvLeft(false), InvRight(false){}
+Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, const char * InsBases)
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Length(End-Begin), InsBases(InsBases), InvLeft(false), InvRight(false){}
 
-Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, Segment Read1, Segment Read2, int ALength)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Segments(), Length(ALength) {Segments.push_back(Read1), Segments.push_back(Read2);}
+Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, Segment Read1, Segment Read2, int ALength)
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(), Length(ALength) {Segments.push_back(Read1), Segments.push_back(Read2);}
 
-Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, vector<Segment> Segments)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Segments(Segments), Length(End-Begin) {}
+Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, vector<Segment> Segments)
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(Segments), Length(End-Begin) {}
 
 const char* Signature::SVTypeNames[]={"DEL","INS","DUP","INV"};
 
@@ -30,6 +30,11 @@ void Signature::setInvLeft(bool b)
 void Signature::setInvRight(bool b)
 {
     InvRight=b;
+}
+
+void Signature::setID(unsigned d)
+{
+    ID=d;
 }
 
 bool Signature::operator<(const Signature &Other) const
