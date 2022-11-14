@@ -538,7 +538,7 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Argume
 	int CurrentQueryStart=QueryBegin;
 	string Allele;
 	//int MergeDis=500;
-	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	int MinMaxMergeDis=Args.InsMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	for (int i=0;i<br->core.n_cigar;++i)
 	{
