@@ -55,13 +55,25 @@ bool analyzeCustomParas(Arguments & Args)
 		if (Args.CustomClusterParas[i]!="")
 		{
 			vector<string> sl=split(Args.CustomClusterParas[i], ",");
-			if (sl.size()!=2)
+			if (sl.size()!=4 && sl.size()!=7 && sl.size()!=5)
 			{
 				fprintf(stderr,"Error: wrong parameter format %s.\n", Args.CustomClusterParas[i].c_str());
 				return false;
 			}
 			Args.BrotherhoodTypeForceBrothers[i]=atoi(sl[0].c_str());
 			Args.BrotherhoodTypeRatios[i]=atof(sl[1].c_str());
+			Args.BrotherhoodTypeLengthMinEndurance[i]=atoi(sl[2].c_str());
+			Args.BrotherhoodTypeLengthRatios[i]=atof(sl[3].c_str());
+			if (sl.size()==4 || sl.size()==5)
+			{
+				Args.BrotherhoodNearRanges[i]=-1;
+			}
+			else
+			{
+				Args.BrotherhoodNearRanges[i]=atoi(sl[4].c_str());
+				Args.BrotherhoodTypeForceBrothers2[i]=atoi(sl[5].c_str());
+				Args.BrotherhoodTypeLengthRatios2[i]=atof(sl[6].c_str());
+			}
 		}
 		if (Args.CustomFilterParas[i]!="")
 		{
@@ -105,18 +117,19 @@ int main(int argc, const char* argv[])
     OH.addOpt('t', "threads", 1, "Number", "Number of threads. (8)",'i',&(Args.ThreadN));
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
-    // OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
+    OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "Use default parameters for CCS data.",'b',&(Args.AllCCS));
     OH.addOpt(0, "CLR", 0, "", "Use default parameters for CLR data.",'b',&(Args.AllCLR));
-    OH.addOpt(0, "DelClusterParas", 1, "Fixed,Ratio", "Custom clustering parameters for deletions.",'S',&(Args.CustomClusterParas[0]));
-    OH.addOpt(0, "InsClusterParas", 1, "Fixed,Ratio", "Custom clustering parameters for insertions.",'S',&(Args.CustomClusterParas[1]));
-    OH.addOpt(0, "DupClusterParas", 1, "Fixed,Ratio", "Custom clustering parameters for duplications.",'S',&(Args.CustomClusterParas[2]));
-    OH.addOpt(0, "InvClusterParas", 1, "Fixed,Ratio", "Custom clustering parameters for inversions.",'S',&(Args.CustomClusterParas[3]));
+    OH.addOpt(0, "DelClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for deletions, if later 3 not given or NearRange=-1 use single layer clustering.",'S',&(Args.CustomClusterParas[0]));
+    OH.addOpt(0, "InsClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for insertions, if later 3 not given or NearRange=-1 use single layer clustering.",'S',&(Args.CustomClusterParas[1]));
+    OH.addOpt(0, "DupClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for duplications, if later 3 not given or NearRange=-1 use single layer clustering.",'S',&(Args.CustomClusterParas[2]));
+    OH.addOpt(0, "InvClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for inversions, if later 3 not given or NearRange=-1 use single layer clustering.",'S',&(Args.CustomClusterParas[3]));
     OH.addOpt(0, "DelFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for deletions.",'S',&(Args.CustomFilterParas[0]));
     OH.addOpt(0, "InsFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for insertions.",'S',&(Args.CustomFilterParas[1]));
     OH.addOpt(0, "DupFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for duplications.",'S',&(Args.CustomFilterParas[2]));
     OH.addOpt(0, "InvFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for inversions.",'S',&(Args.CustomFilterParas[3]));
     OH.addOpt(0, "NOF", 0, "", "No filter, output all results.(default false)",'b',&(Args.NoFilter));
+    OH.addOpt(0, "F2", 0, "", "Output all results with ST>=2.(default false)",'b',&(Args.Filter2ST));
     OH.addOpt('m', 0, 1, "SVLEN", "Minimum SV length. (30)",'i',&(Args.MinSVLen));
     OH.addOpt('q', 0, 1, "Quality", "Minimum mapping quality. (20)",'i',&(Args.MinMappingQuality));
     OH.addOpt('l', 0, 1, "Length", "Minimum template length. (500)",'i',&(Args.MinTemplateLength));
@@ -250,6 +263,7 @@ int main(int argc, const char* argv[])
 		// fwrite(CoverageWindows,sizeof(double),NumberOfCoverageWindows,WindowsFile);
 		TotalCoverage=TotalCoverage*((double)(ProcessedLength)/(double)(ProcessedLength+Contigs[i].Size));
 		TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
+		Args.TotalCoverage=TotalCoverage;
 		ProcessedLength+=Contigs[i].Size;
 		// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
 		// continue;

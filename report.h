@@ -51,6 +51,9 @@ class VCFRecord
     int LS;
     double CV;
     double CR;
+    int MinLength;
+    int MaxLength;
+    int MediumLength;
     bool Precise;
     std::string InsConsensus;
     int SVTypeI;
@@ -77,6 +80,7 @@ class VCFRecord
     std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
+    void calcM3L(std::vector<Signature> & SignatureCluster);
 };
 
 void addKledEntries(VCFHeader & Header);

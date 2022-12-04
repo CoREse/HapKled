@@ -72,10 +72,86 @@ tuple<int,int> getConsensusSite(vector<Signature> &Signatures)
     return consensusFixed(Signatures,Signatures.size()/2,stdStat);
 }
 
-tuple<int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster)
+tuple<int,int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster, string SVType)
 {
+    
+    unsigned long long llPos=0;
+    unsigned long long llSVLen=0;
+    int Pos=0, SVLen=0, MeanSVLen=0;
+    int CBegin=0, CEnd=SignatureCluster.size();
+    // if (SVType=="INS")
+    // {
+    //     int MinBinSize=10;
+    //     int BinNumber=100;
+    //     int MaxSVLen=0, MinSVLen=0xffffff;
+    //     for (int i=CBegin;i<CEnd;++i)
+    //     {
+    //         llPos+=SignatureCluster[i].Begin;
+    //         MaxSVLen=max(MaxSVLen,SignatureCluster[i].Length);
+    //         MinSVLen=min(MinSVLen,SignatureCluster[i].Length);
+    //         llSVLen+=SignatureCluster[i].Length;
+    //     }
+    //     Pos=llPos/(CEnd-CBegin);
+    //     MeanSVLen=llSVLen/(CEnd-CBegin);
+    //     int BinSize=(MaxSVLen-MinSVLen)/BinNumber+1;
+    //     if (BinSize<MinBinSize) SVLen=MeanSVLen;
+    //     else
+    //     {
+    //         vector<vector<int>> SigBins;
+    //         for (int i=0;i<BinNumber;++i)
+    //         {
+    //             SigBins.push_back(vector<int>());
+    //         }
+    //         for (int i=CBegin;i<CEnd;++i)
+    //         {
+    //             SigBins[(SignatureCluster[i].Length-MinSVLen)/BinSize].push_back(i);
+    //         }
+    //         int MaxQualifiledIndex=-1;
+    //         for (int i=0;i<BinNumber;++i)
+    //         {
+    //             if (SigBins[i].size()<3) continue;
+    //             MaxQualifiledIndex=i;
+    //         }
+    //         if (MaxQualifiledIndex!=-1)
+    //         {
+    //             llSVLen=0;
+    //             for (int i=0;i<SigBins[MaxQualifiledIndex].size();++i)
+    //             {
+    //                 llSVLen+=SignatureCluster[SigBins[MaxQualifiledIndex][i]].Length;
+    //             }
+    //             SVLen=llSVLen/SigBins[MaxQualifiledIndex].size();
+    //         }
+    //         else SVLen=MeanSVLen;
+    //     }
+    //     // for (int i=CBegin;i<CEnd;++i)
+    //     // {
+    //     //     llPos+=SignatureCluster[i].Begin;
+    //     //     llSVLen+=SignatureCluster[i].Length;
+    //     // }
+    //     // Pos=llPos/(CEnd-CBegin);
+    //     // MeanSVLen=llSVLen/(CEnd-CBegin);
+    //     // for (int i=CBegin;i<CEnd;++i)
+    //     // {
+    //     //     if (SignatureCluster[i].Length<MeanSVLen*2)
+    //     //     {
+    //     //         SVLen=max(SVLen,SignatureCluster[i].Length);
+    //     //     }
+    //     // }
+    // }
+    // else
+    {
+        for (int i=CBegin;i<CEnd;++i)
+        {
+            llPos+=SignatureCluster[i].Begin;
+            llSVLen+=SignatureCluster[i].Length;
+        }
+        Pos=llPos/(CEnd-CBegin);
+        MeanSVLen=llSVLen/(CEnd-CBegin);
+        SVLen=MeanSVLen;
+    }
+    return tuple<int,int,int>(Pos,SVLen,MeanSVLen);
     float L2Weight=0.75;
-    int Pos,Length;
+    int Length;
     vector<Signature> PSigs[3];
     for (int i=0;i<SignatureCluster.size();++i)
     {
@@ -106,7 +182,7 @@ tuple<int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster)
             Length=get<1>(Sites[0])*(1.0-L2Weight)+get<1>(Sites[1])*(L2Weight);
         }
     }
-    return tuple<int,int>(Pos,Length);
+    return tuple<int,int,int>(Pos,Length,MeanSVLen);
 }
 
 template <typename IterType> double calcSD(IterType Begin, IterType End)//Not estimate, just calc
@@ -225,9 +301,10 @@ int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen, double 
 {
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
     if (SD!=NULL) *SD=LengthSD;
+    return MAX(0.0,100.0-(LengthSD/(double)SVLen*100.0));
     int SizePenalty=0;
     // if (SignatureCluster.size()<4) SizePenalty=4-SignatureCluster.size();
-    return MAX(0.0,100.0-(LengthSD/(double)SVLen*500.0-SizePenalty));
+    // return MAX(0.0,100.0-(LengthSD/(double)SVLen*500.0-SizePenalty));
 }
 
 double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums, double* CheckPoints, int CheckPointInterval)
@@ -558,6 +635,19 @@ string getInsConsensus(int SVLen, vector<Signature> & SignatureCluster, double E
     return Consensus;
 }
 
+void VCFRecord::calcM3L(vector<Signature> & SignatureCluster)
+{
+    vector<int> Lengths;
+    for (auto s : SignatureCluster)
+    {
+        Lengths.push_back(s.Length);
+    }
+    sort(Lengths.data(),Lengths.data()+Lengths.size());
+    MinLength=Lengths[0];
+    MediumLength=Lengths[(int)(Lengths.size()/2)];
+    MaxLength=Lengths[Lengths.size()-1];
+}
+
 int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
@@ -568,13 +658,15 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     statCluster(SignatureCluster,SS,ST,SS2,ST2);
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
-    tuple<int,int> Site=analyzeSignatureCluster(SignatureCluster);
+    calcM3L(SignatureCluster);
+    tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType);
+    int MeanSVLen=get<2>(Site);
     SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
     //VCF version 4.2 says if alt is <ID>, the pos is the base preceding the polymorphism. No mention of the "base 1" rule.
+    
+    if (SVLen<=0) {Keep=false;return;}
 
-    unsigned long long llPos=0;
-    unsigned long long llSVLen=0;
     int CBegin=0, CEnd=SignatureCluster.size();
     CR=0;
     if (Core.End!=0)
@@ -583,18 +675,9 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
         CEnd=Core.End;
         CR=(CEnd-CBegin)/(SignatureCluster.size());
     }
-    for (int i=CBegin;i<CEnd;++i)
-    {
-        llPos+=SignatureCluster[i].Begin;
-        llSVLen+=SignatureCluster[i].Length;
-    }
-    Pos=llPos/(CEnd-CBegin);
-    SVLen=llSVLen/(CEnd-CBegin);
-    
-    if (SVLen<=0) {Keep=false;return;}
 
     double LengthSD;
-    LS=getLengthSDRatioScore(SignatureCluster,SVLen,&LengthSD);
+    LS=getLengthSDRatioScore(SignatureCluster,MeanSVLen,&LengthSD);
 
     if (ST>=Args.MinimumPreciseTemplates && LengthSD<Args.PreciseStandard && calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard && calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard) Precise=true;
     else Precise=false;
@@ -611,8 +694,11 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
         if (HasLeft) INFO+="L";
         if (HasRight) INFO+="R";
     }
-    if (ST<2) {Keep=false;return;}
     if (Args.NoFilter) Keep=true;
+    // else if (ST*10+LS>117.11) Keep=true;
+    // else if (true) {Keep=false;return;}
+    else if (ST<2) {Keep=false;return;}
+    else if (Args.Filter2ST) Keep=true;
     else if (ST2>30) Keep=true;
     else
     {
@@ -728,7 +814,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     free(TSeq);
     ++Pos;++End;//trans to 1-based
     if (INFO!="") INFO+=";";
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR);
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength);
 }
 
 VCFRecord::operator std::string() const
@@ -826,6 +912,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","CV","Nearby coverage for genotyping.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","CC","Average coverage of this contig.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","CR","Core ratio.","1","Float"));
+    Header.addHeaderEntry(HeaderEntry("INFO","M3L","(min length, medium length, max length).","3","Integer"));
     // Header.addHeaderEntry(HeaderEntry("INFO","CS","Nearby coverage for genotyping.(by windows)","1","Float"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));

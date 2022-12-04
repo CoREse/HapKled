@@ -220,7 +220,7 @@ struct ClusterStats
     ClusterStats():ABegin(0),AEnd(0),ALength(0),Templates(){}
 };
 
-bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int ForceBrother=5, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
+bool isBrother(const Signature &A, const Signature &B, float PosRatio=0.1, int ForceBrother=5, float LengthRatio=0.1, int LengthMinEndurance=5, int ForceBrother2=5, float LengthRatio2=0.1, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
 {
     // if (SupportedSV==3)//Inv
     // {
@@ -275,21 +275,23 @@ bool isBrother(const Signature &A, const Signature &B, float Ratio=0.1, int Forc
     //     return false;
     // }
     if (A.TemplateName==B.TemplateName) return false;
-    Ratio=0.2;
+    // Ratio=0.2;
     if (abs(A.Begin-B.Begin)<=ForceBrother && abs(A.End-B.End)<=ForceBrother) return true;
     int MinLength=min(A.Length,B.Length);
-    if (abs(A.Begin-B.Begin)<=MinLength*Ratio && abs(A.End-B.End)<=MinLength*Ratio && abs(A.Length-B.Length)<=MinLength*Ratio) return true;
+    int LengthEndurance=max(LengthMinEndurance,int(MinLength*LengthRatio));
+    // if (abs(A.Begin-B.Begin)<=MinLength*PosRatio && abs(A.End-B.End)<=MinLength*PosRatio && abs(A.Length-B.Length)<=MinLength*LengthRatio) return true;
+    if (abs(A.Begin-B.Begin)<=MinLength*PosRatio && abs(A.End-B.End)<=MinLength*PosRatio && abs(A.Length-B.Length)<=LengthEndurance) return true;
     // if (abs(A.Begin-B.Begin)<=NearRange && abs(A.End-B.End)<=NearRange && abs(A.Length-B.Length)<=(MAX(5,MinLength*0.1))) return true;
     return false;
 }
 
-bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float Ratio=0.1, int ForceBrother=5, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
+bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float PosRatio=0.1, int ForceBrother=5, float LengthRatio=0.1, int LengthMinEndurance=5, int ForceBrother2=5, float LengthRatio2=0.1, int NearRange=500, const ClusterStats * AS=nullptr, const ClusterStats* BS=nullptr)
 {
     if (A[0].SupportedSV!=B[0].SupportedSV) return false;
     NearRange=200;
     if (A.size()==1 && B.size()==1)
     {
-        if (abs(A[0].Length-B[0].Length)<ForceBrother && abs(A[0].Begin-B[0].Begin)<NearRange && abs(A[0].End-B[0].End)<NearRange) return true;
+        if (abs(A[0].Length-B[0].Length)<ForceBrother2 && abs(A[0].Begin-B[0].Begin)<NearRange && abs(A[0].End-B[0].End)<NearRange) return true;
         return false;
     }
     // double ABegin=0,AEnd=0,ALength=0,BBegin=0,BEnd=0,BLength=0;
@@ -309,8 +311,8 @@ bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float Rat
     //     BLength=(BLength*i)/(i+1)+B[i].Length/(double(i+1));
     // }
     double MeanLength=(AS->ALength+BS->ALength)/2.0;
-    double LengthDiff=30;
-    double LengthRatioDiff=0.5;
+    double LengthDiff=ForceBrother2;
+    double LengthRatioDiff=LengthRatio2;
     double MinSize=MIN(A.size(),B.size());
     LengthDiff/=MinSize;
     LengthRatioDiff/=MinSize;
@@ -318,7 +320,7 @@ bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float Rat
     {
         for (int i=0;i<B.size();++i)
         {
-            if (ATemplates.count(B[i].TemplateName)!=0) return false;
+            if (ATemplates.count(B[i].TemplateName)!=0) return false;//has sigs from same template, no brother
         }
         return true;
     }
@@ -388,12 +390,18 @@ template<typename T> class Brotherhood
         int SupportedSV=getSupportedSV(Cluster);
         int ForceBrother=Args.BrotherhoodTypeForceBrothers[SupportedSV];
         float Ratio=Args.BrotherhoodTypeRatios[SupportedSV];
+        // Ratio=1.5-Args.TotalCoverage*0.3;
+        // Ratio=max(0.2f,Ratio);
+        int LengthMinEndurance=Args.BrotherhoodTypeLengthMinEndurance[SupportedSV];
+        float LengthRatio=Args.BrotherhoodTypeLengthRatios[SupportedSV];
+        int NearRange=Args.BrotherhoodNearRanges[SupportedSV];
+        int ForceBrother2=Args.BrotherhoodTypeForceBrothers2[SupportedSV];
+        float LengthRatio2=Args.BrotherhoodTypeLengthRatios2[SupportedSV];
         if (CCS)
         {
             ForceBrother=Args.BrotherhoodCCSTypeForceBrothers[SupportedSV];
             Ratio=Args.BrotherhoodCCSTypeRatios[SupportedSV];
         }
-        int NearRange=500;
             // fprintf(stderr,"%d %d %d %d %d %d %d\n",Other.MinBegin-MaxEnd, Other.MinBegin, MaxEnd, MinBegin-Other.MaxEnd,MinBegin, Other.MaxEnd,Brotherhood::ForceBrother);
         if (((Other.MinBegin>MaxEnd+ForceBrother+NearRange) || ((MinBegin>Other.MaxEnd+ForceBrother+NearRange)))) return false;
             // fprintf(stderr,"yes");
@@ -403,7 +411,7 @@ template<typename T> class Brotherhood
             for (int j=0;j<Other.Cluster.size();++j)
             {
                 const T & B=Other.Cluster[j];
-                if (isBrother(A,B,0.2,ForceBrother,NearRange,&(CStats[i]),&(Other.CStats[j])))
+                if (isBrother(A,B,Ratio,ForceBrother,LengthRatio,LengthMinEndurance,ForceBrother2,LengthRatio2,NearRange,&(CStats[i]),&(Other.CStats[j])))
                 {
                     return true;
                 }
@@ -557,6 +565,8 @@ void fitInClusters(vector<vector<Signature>> &Clusters, vector<Signature> & Othe
     {
         int ForceBrother=Args.BrotherhoodTypeForceBrothers[Cluster[0].SupportedSV];
         float Ratio=Args.BrotherhoodTypeRatios[Cluster[0].SupportedSV];
+        int LengthMinEndurance=Args.BrotherhoodTypeLengthMinEndurance[Cluster[0].SupportedSV];
+        float LengthRatio=Args.BrotherhoodTypeLengthRatios[Cluster[0].SupportedSV];
         double ClusterSize=Cluster.size();
         double SupportedBrother=0;
         for (int i=0;i<OtherSignatures.size();++i)
@@ -564,7 +574,7 @@ void fitInClusters(vector<vector<Signature>> &Clusters, vector<Signature> & Othe
             SupportedBrother=0;
             for (const Signature & s: Cluster)
             {
-                if (isBrother(s, OtherSignatures[i],Ratio,ForceBrother))
+                if (isBrother(s, OtherSignatures[i],Ratio,ForceBrother,LengthRatio,LengthMinEndurance))
                 {
                     SupportedBrother+=1;
                     if (SupportedBrother/ClusterSize>=0.8)
@@ -896,7 +906,8 @@ void genMergedSigs(list<Brotherhood<Signature>> &ClusteredBrotherhoods, vector<S
     }
     unordered_map<string,vector<vector<Signature>::iterator>> TemplateSigs;
     vector<Signature> Sigs=SortedSignatures;
-    int SupportedSV=Sigs[0].SupportedSV;
+    int SupportedSV=0;
+    if (Sigs.size()>0) SupportedSV=Sigs[0].SupportedSV;
     for (int i=0;i<SortedSignatures.size();++i)
     {
         if (ClusterCount[SortedSignatures[i].ID]>1) continue;
@@ -935,7 +946,7 @@ void genMergedSigs(list<Brotherhood<Signature>> &ClusteredBrotherhoods, vector<S
     }
     else
     {
-        int Endurance=200;
+        int Endurance=500;
         for (auto mi=TemplateSigs.begin();mi!=TemplateSigs.end();++mi)
         {
             sort(mi->second.begin(),mi->second.end(),[](vector<Signature>::iterator & a, vector<Signature>::iterator &b)-> bool {return a->Begin<b->Begin;});
@@ -1066,6 +1077,9 @@ void mergeAdjacent(list<Brotherhood<Signature>> &ClusteredBrotherhoods, vector<S
     ClusteredBrotherhoods.sort([](Brotherhood<Signature> & a, Brotherhood<Signature> &b)-> bool {return a.MinBegin<b.MinBegin;});
 }
 
+//no merging adjacent sigs in input phase, then clustering by two layers here
+//first layer clusters all similar sigs, and merge nearby clusters
+//second layer cluster all 1st layer clusters.
 void brotherClustering2(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments &Args)
 {
     fprintf(stderr,"First layer clustering... %lu %lu:\n",SortedSignatures.size(), Clusters.size());
@@ -1083,6 +1097,7 @@ void brotherClustering2(vector<Signature> & SortedSignatures, vector<vector<Sign
     fprintf(stderr,"Second layer clustering... %lu %lu:\n",SortedSignatures.size(), Clusters.size());
     brotherClustering(Clusters, ClusterBrotherhoods,BamStats,Args);
     Clusters.clear();
+    //core generation
     for (Brotherhood<vector<Signature>>& B :ClusterBrotherhoods)
     {
         int BiggestSize=0, BiggestBegin=0, BiggestEnd=0, FullSize=0;
@@ -1108,7 +1123,12 @@ void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> 
     // fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
     // batchClustering(SortedSignatures,Clusters,BamStats,Args);
     // brotherClustering(SortedSignatures,Clusters,BamStats,Args);
-    brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
+    if (SortedSignatures.size()>0 && Args.BrotherhoodNearRanges[SortedSignatures[0].SupportedSV]==-1)
+    {
+        brotherClustering(SortedSignatures,Clusters,BamStats,Args);
+        for (int i=0;i<Clusters.size();++i) Cores.push_back(ClusterCore());
+    }
+    else brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
     // mergeClusters(Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats,true);
     fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());
