@@ -5,9 +5,10 @@
 
 struct Contig
 {
+	const unsigned int ID;//Contig id in reference file
 	const unsigned int Size;
 	std::string Name;
-	Contig(const char *Name,unsigned int Size);
+	Contig(const unsigned int ID,const char *Name,unsigned int Size);
 };
 
 #endif

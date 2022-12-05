@@ -243,6 +243,7 @@ struct Alignment
 	bool operator<(const Alignment &other) const
 	{
 		return this->ForwardPos<other.ForwardPos;
+		// return this->InnerPos<other.InnerPos;
 	}
 };
 
@@ -257,8 +258,9 @@ string cigar2string(uint32_t* CIGARD, uint32_t CIGARN)
 	return result;
 }
 
-void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, HandleBrMutex *Mut, Arguments & Args)
+void searchDelFromAligns(bam1_t *br, Contig& TheContig, vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
+	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][0];
 	for (int i=1;i<Aligns.size();++i)
 	{
 		int i1=i-1,i2=i;
@@ -291,8 +293,9 @@ void searchDelFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<
 	}
 }
 
-void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, HandleBrMutex *Mut, Arguments & Args)
+void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
+	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][1];
 	for (int i=1;i<Aligns.size();++i)
 	{
 		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
@@ -307,8 +310,9 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
-void searchDupFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, HandleBrMutex *Mut, Arguments & Args)
+void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
+	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][2];
 	for (int i=1;i<Aligns.size();++i)
 	{
 		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
@@ -352,8 +356,9 @@ bool continuous(const Alignment& Former, const Alignment& Latter, unsigned Endur
 	return false;
 }
 
-void searchInvFromAligns(bam1_t *br,vector<Alignment> &Aligns, int Tech, vector<Signature> &Signatures, HandleBrMutex *Mut, Arguments & Args)
+void searchInvFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
+	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][3];
 	for (int i=1;i<Aligns.size();++i)
 	{
 		if (Aligns[i-1].Strand==Aligns[i].Strand) continue;
@@ -452,7 +457,7 @@ void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<Signature> *TypeSignatures, double *CoverageWindows, HandleBrMutex *Mut,Arguments & Args)
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, double *CoverageWindows, HandleBrMutex *Mut,Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	// int AS=bam_aux2i(bam_aux_get(br,"AS"));
@@ -494,7 +499,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		{
 			// printf(" %s",cigars);
 			if (abs(pos-br->core.pos)<=1000000)
-				Aligns.push_back(Alignment(pos,strand,cigars));
+			Aligns.push_back(Alignment(pos,strand,cigars));
 		}
 		k+=1;
 	}
@@ -510,14 +515,14 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// 	statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
 	// 	// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
 	// }
-	searchDelFromAligns(br,Aligns,Tech,TypeSignatures[0], Mut, Args);
-	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures[1], Mut, Args);
-	searchDupFromAligns(br,Aligns,Tech,TypeSignatures[2], Mut, Args);
-	searchInvFromAligns(br,Aligns,Tech,TypeSignatures[3], Mut, Args);
+	searchDelFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Mut, Args);
+	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Mut, Args);
+	searchDupFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Mut, Args);
+	searchInvFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Mut, Args);
 }
 
 //This kind of signature should - some normal isize when calc svlen
-void getDRPSignature(bam1_t * br, Stats& SampleStats, HandleBrMutex *Mut, vector<Signature> *TypeSignatures)
+void getDRPSignature(bam1_t * br, Stats& SampleStats, HandleBrMutex *Mut, Contig& TheContig, vector<vector<vector<Signature>>> &TypeSignatures)
 {
 	// const char * qname=bam_get_qname(br);
 	// if (strcmp(qname, "HISEQ1:93:H2YHMBCXX:2:1112:15493:51859")==0)
@@ -569,13 +574,13 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, HandleBrMutex *Mut, vector
 			if (BaseGap>SampleStats.Mean+5*SampleStats.SD)
 			{
 				pthread_mutex_lock(&Mut->m_Sig[0]);
-				TypeSignatures[0].push_back(Signature(1,1,0,ForwardBase+int(SampleStats.Mean/2),ForwardBase+int(SampleStats.Mean/2)+DelLength,bam_get_qname(br),br->core.qual,Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DelLength));
+				TypeSignatures[TheContig.ID][0].push_back(Signature(1,1,0,ForwardBase+int(SampleStats.Mean/2),ForwardBase+int(SampleStats.Mean/2)+DelLength,bam_get_qname(br),br->core.qual,Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DelLength));
 				pthread_mutex_unlock(&Mut->m_Sig[0]);
 			}
 			else if (BaseGap<SampleStats.Mean-3*SampleStats.SD)
 			{
 				pthread_mutex_lock(&Mut->m_Sig[2]);
-				TypeSignatures[2].push_back(Signature(1,1,2,DupStart,DupEnd,bam_get_qname(br),br->core.qual,Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DupSize));
+				TypeSignatures[TheContig.ID][2].push_back(Signature(1,1,2,DupStart,DupEnd,bam_get_qname(br),br->core.qual,Segment(ForwardBase,ForwardEnd),Segment(ReverseEnd,ReverseBase),DupSize));
 				pthread_mutex_unlock(&Mut->m_Sig[2]);
 			}
 		}
@@ -822,14 +827,14 @@ struct HandleBrArgs
 	Sam *pSamFile;
 	int Tech;
 	Stats *pSampleStats;
-	vector<Signature> *TypeSignatures;
+	vector<vector<vector<Signature>>> *pTypeSignatures;
 	SegmentSet *pAllPrimarySegments;
 	double* CoverageWindows;
 	HandleBrMutex *mut;
 	Arguments * pArgs;
 };
 
-void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<Signature> *TypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, HandleBrMutex *mut,Arguments * pArgs)
+void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, HandleBrMutex *mut,Arguments * pArgs)
 {
 	Contig & TheContig=*pTheContig;
 	Sam & SamFile=*pSamFile;
@@ -845,8 +850,8 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 	}
 	// int OldDELN=TypeSignatures[0].size();
 	// int OldINSN=TypeSignatures[1].size();
-	getDelFromCigar(br,Tech,TypeSignatures[0], mut, Args);
-	getInsFromCigar(br,Tech,TypeSignatures[1], mut, Args);
+	getDelFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][0], mut, Args);
+	getInsFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][1], mut, Args);
 	// int NewDELN=TypeSignatures[0].size()-OldDELN;
 	// int NewINSN=TypeSignatures[1].size()-OldINSN;
 	// if (NewINSN>0 && NewDELN>0 && ((NewDELN+NewINSN)>(MAX(10,br->core.l_qseq*0.001))))
@@ -858,16 +863,16 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 	{
 		if (read_is_paired(br))
 		{
-			getDRPSignature(br, SampleStats, mut, TypeSignatures);
+			getDRPSignature(br, SampleStats, mut, TheContig, *pTypeSignatures);
 		}
 	}
-	searchForClipSignatures(br, TheContig, SamFile, Tech, TypeSignatures, CoverageWindows, mut, Args);
+	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindows, mut, Args);
 }
 
 void * handlebrWrapper(void * args)
 {
 	HandleBrArgs * A=(HandleBrArgs*)args;
-	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, A->TypeSignatures, A->pAllPrimarySegments, A->CoverageWindows, A->mut, A->pArgs);
+	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, A->pTypeSignatures, A->pAllPrimarySegments, A->CoverageWindows, A->mut, A->pArgs);
 	bam_destroy1(A->br);
 	delete A;
 	return NULL;
@@ -942,7 +947,7 @@ void readBamToBrBlock(htsFile * SamFile,bam_hdr_t *Header, BrBlock** Top)
 }
 */
 
-void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<Signature>* TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, HandleBrMutex *Mut, Arguments & Args, FILE* Pipe=stdin)
+void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, HandleBrMutex *Mut, Arguments & Args, FILE* Pipe=stdin)
 {
     bam1_t *br=bam_init1();
 	size_t linebuffersize=1024*0124;
@@ -955,7 +960,7 @@ void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & Sam
 	{
 		kstring_t ks={length,linebuffersize,linebuffer};
 		sam_parse1(&ks,SamFile.Header,br);
-		handlebr(br,&TheContig,&SamFile,Tech, &SampleStats, TypeSignatures, &AllPrimarySegments, CoverageWindows, Mut, &Args);
+		handlebr(br,&TheContig,&SamFile,Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows, Mut, &Args);
 		StdinLock.lock();
 		length=getline(&linebuffer,&linebuffersize,Pipe);
 		StdinLock.unlock();
@@ -1085,7 +1090,7 @@ void closeSam(vector<Sam> &SamFiles)
 	if (p.pool) hts_tpool_destroy(p.pool);
 }
 
-void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, const char * DataSource)
+void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, const char * DataSource)
 {
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
@@ -1121,7 +1126,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 		}
 		if (DataSource!=0)
 		{
-			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, ContigTypeSignatures,AllPrimarySegments,CoverageWindows,&mut,Args,DSFile);
+			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, TypeSignatures,AllPrimarySegments,CoverageWindows,&mut,Args,DSFile);
 		}
 		else
 		{
@@ -1131,7 +1136,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 				hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
-					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, ContigTypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args);
+					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args);
 				}
 				bam_destroy1(br);
 			}
@@ -1143,7 +1148,7 @@ void collectSignatures(Contig &TheContig, vector<Signature> *ContigTypeSignature
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
 					bam1_t *cbr=bam_dup1(br);
-					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, ContigTypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args};
+					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args};
 					hts_tpool_dispatch(p.pool,HandlebrProcess,handlebrWrapper,(void *)A);
 				}
 				bam_destroy1(br);
@@ -1163,7 +1168,7 @@ Contig * getContigs(const char *ReferenceFileName, int& NSeq, int RDWindowSize)
 	{
 		const char * ContigName=faidx_iseq(Ref,i);
 		int SeqLen=faidx_seq_len(Ref,ContigName);
-		new (Contigs+i) Contig(ContigName, SeqLen);
+		new (Contigs+i) Contig(i,ContigName, SeqLen);
 	}
 	fai_destroy(Ref);
 	return Contigs;

@@ -94,6 +94,24 @@ bool analyzeCustomParas(Arguments & Args)
 	return true;
 }
 
+bool toCall(const Contig & C, const Arguments &Args)
+{
+	if (Args.CallingContigs.size()!=0)
+	{
+		bool ToCall=false;
+		for (int k=0;k<Args.CallingContigs.size();++k)
+		{
+			if (C.Name==Args.CallingContigs[k])
+			{
+				ToCall=true;
+				break;
+			}
+		}
+		return ToCall;
+	}
+	return true;
+}
+
 #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
 //#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
@@ -117,6 +135,7 @@ int main(int argc, const char* argv[])
     OH.addOpt('t', "threads", 1, "Number", "Number of threads. (8)",'i',&(Args.ThreadN));
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
+    OH.addOpt(0, "BC", 0, "", "Calling contig by contig, cost less memory.",'b',&(Args.CallByContig));
     OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "Use default parameters for CCS data.",'b',&(Args.AllCCS));
     OH.addOpt(0, "CLR", 0, "", "Use default parameters for CLR data.",'b',&(Args.AllCLR));
@@ -189,20 +208,7 @@ int main(int argc, const char* argv[])
 	addKledEntries(Header);
 	for (int i=0;i<NSeq;++i)
 	{
-		if (Args.CallingContigs.size()!=0)
-		{
-			bool ToCall=false;
-			for (int k=0;k<Args.CallingContigs.size();++k)
-			{
-				if (Contigs[i].Name==Args.CallingContigs[k])
-				{
-					ToCall=true;
-					break;
-				}
-			}
-			if (!ToCall) continue;
-		}
-		Header.addContig(Contigs[i]);
+		if (toCall(Contigs[i],Args)) Header.addContig(Contigs[i]);
 	}
 
 	faidx_t * Ref=fai_load(Args.ReferenceFileName);
@@ -214,30 +220,53 @@ int main(int argc, const char* argv[])
 	// FILE * WindowsFile=fopen("/home/cre/workspace/kled/data/wins.txt","wb");
 	updateTime("Getting stats", "Starting calling...");
 	unsigned int SVCounts[NumberOfSVTypes];for (int i=0;i<NumberOfSVTypes;++i) SVCounts[i]=0;
+
+	vector<vector<vector<Signature>>> TypeSignatures;//Contig-Type-Signatures
+	vector<SegmentSet> ContigsAllPrimarySegments;
+	vector<double *> CoverageWindowsPs;
 	for (int i=0;i<NSeq;++i)
 	{
-		if (Args.CallingContigs.size()!=0)
+		TypeSignatures.push_back(vector<vector<Signature>>());
+		for (int j=0;j<NumberOfSVTypes;++j) TypeSignatures[i].push_back(vector<Signature>());
+	}
+	if (!Args.CallByContig)
+	{
+		for (int i=0;i<NSeq;++i)
 		{
-			bool ToCall=false;
-			for (int k=0;k<Args.CallingContigs.size();++k)
-			{
-				if (Contigs[i].Name==Args.CallingContigs[k])
-				{
-					ToCall=true;
-					break;
-				}
-			}
-			if (!ToCall) continue;
+			if (! toCall(Contigs[i],Args)) continue;
+			updateTime("","Calling...");
+			SegmentSet AllPrimarySegments;
+			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
+			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
+			double *CoverageWindows=new double[NumberOfCoverageWindows];
+			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
+			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+			AllPrimarySegments.sortNStat();
+			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
+			CoverageWindowsPs.push_back(CoverageWindows);
 		}
-		updateTime("","Calling...");
-		SegmentSet AllPrimarySegments;
-		vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
-		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
-		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
-		double *CoverageWindows=new double[NumberOfCoverageWindows];
-		for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
-		collectSignatures(Contigs[i],ContigTypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
-		AllPrimarySegments.sortNStat();
+	}
+	for (int i=0;i<NSeq;++i)
+	{
+		if (! toCall(Contigs[i],Args)) continue;
+		if (Args.CallByContig)
+		{
+			updateTime("","Calling...");
+			SegmentSet AllPrimarySegments;
+			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
+			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
+			double *CoverageWindows=new double[NumberOfCoverageWindows];
+			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
+			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+			AllPrimarySegments.sortNStat();
+			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
+			CoverageWindowsPs.push_back(CoverageWindows);
+		}
+		double *CoverageWindows=CoverageWindowsPs[i];
+		SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
+		vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
 		// fprintf(stderr,"%u\n",Contigs[i].Size-1);
 		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
 		CoverageWindows[0]=0;
@@ -379,6 +408,9 @@ int main(int argc, const char* argv[])
 			printf("\n%s",string(r).c_str());
 		}
 		delete CoverageWindows;
+		CoverageWindowsPs[i]=nullptr;
+		TypeSignatures[i].clear();
+		ContigsAllPrimarySegments[i]=SegmentSet();
 		// free(CoverageWindowsSums);
 		// free(CheckPoints);
 	}

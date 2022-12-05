@@ -1,4 +1,4 @@
 #include "contig.h"
 
-Contig::Contig(const char * Name, unsigned Size)
-:Name(Name),Size(Size){}
+Contig::Contig(const unsigned int ID, const char * Name, unsigned Size)
+:ID(ID),Name(Name),Size(Size){}
