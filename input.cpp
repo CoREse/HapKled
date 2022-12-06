@@ -277,16 +277,13 @@ void searchDelFromAligns(bam1_t *br, Contig& TheContig, vector<Alignment> &Align
 				// }
 				// else continue;
 			}
-			// if (Aligns[i].Cid!=TheContig.ID)
-			// {
-			// 	if (Aligns[i].Pos-Aligns[j].Pos>100000) continue;
-			// }
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
 			int FormerI=i, LatterI=j;
-			// if (Aligns[i].Strand==0)
-			// {
-			// 	FormerI=j;
-			// 	LatterI=i;
-			// }
+			if (Aligns[i].Strand==0)
+			{
+				FormerI=j;
+				LatterI=i;
+			}
 			// if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=Args.MinSVLen) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
 			if (Aligns[FormerI].End<Aligns[LatterI].Pos && Aligns[LatterI].Pos-Aligns[FormerI].End-(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd)>=Args.MinSVLen)
 			{
@@ -304,96 +301,143 @@ void searchDelFromAligns(bam1_t *br, Contig& TheContig, vector<Alignment> &Align
 
 void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
-	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][1];
-	for (int i=1;i<Aligns.size();++i)
+	// vector<Signature> &Signatures=TypeSignatures[TheContig.ID][1];
+	for (int i=0;i<Aligns.size()-1;++i)
 	{
-		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
-		int Gap=(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)-(Aligns[i].Pos+10-Aligns[i-1].End);
-		if (Aligns[i-1].End<Aligns[i].Pos+Args.InsClipTolerance && Gap>=Args.MinSVLen && Gap<Args.InsMaxGapSize)
+		for (int j=i+1;j<Aligns.size();++j)
 		{
-			Signature TempSignature(2,Tech,1,(Aligns[i-1].End+Aligns[i].Pos)/2,MIN(TheContig.Size-1,(Aligns[i-1].End+Aligns[i].Pos)/2+Gap),bam_get_qname(br),br->core.qual);
-			pthread_mutex_lock(&Mut->m_Sig[1]);
-			Signatures.push_back(TempSignature);
-			pthread_mutex_unlock(&Mut->m_Sig[1]);
+			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
+			int FormerI=i, LatterI=j;
+			if (Aligns[i].Strand==0)
+			{
+				FormerI=j;
+				LatterI=i;
+			}
+			int Gap=(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd)-(Aligns[LatterI].Pos+10-Aligns[FormerI].End);
+			if (Aligns[FormerI].End<Aligns[LatterI].Pos+Args.InsClipTolerance && Gap>=Args.MinSVLen && Gap<Args.InsMaxGapSize)
+			{
+				Signature TempSignature(2,Tech,1,(Aligns[FormerI].End+Aligns[LatterI].Pos)/2,MIN(TheContig.Size-1,(Aligns[FormerI].End+Aligns[LatterI].Pos)/2+Gap),bam_get_qname(br),br->core.qual);
+				pthread_mutex_lock(&Mut->m_Sig[1]);
+				TypeSignatures[Aligns[FormerI].Cid][1].push_back(TempSignature);
+				// Signatures.push_back(TempSignature);
+				pthread_mutex_unlock(&Mut->m_Sig[1]);
+			}
+			break;
 		}
 	}
 }
 
 void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
-	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][2];
-	for (int i=1;i<Aligns.size();++i)
+	for (int i=0;i<Aligns.size()-1;++i)
 	{
-		if (Aligns[i-1].Strand!=Aligns[i].Strand) continue;
-		// vector<Segment> v;
-		if (Aligns[i].Pos<Aligns[i-1].End)
+		for (int j=0;j<Aligns.size();++j)
 		{
-			int Dup=0;
-			if (Aligns[i-1].End-Aligns[i].Pos>Aligns[i].Length)
+			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
+			// vector<Segment> v;
+			int FormerI=i, LatterI=j;
+			if (Aligns[i].Strand==0)
 			{
-				Dup=1;
+				FormerI=j;
+				LatterI=i;
 			}
-			else if (Aligns[i-1].End-Aligns[i].Pos>Aligns[i-1].Length)
+			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
 			{
-				Dup=1;
-			}
-			else
-			{
-				if (Aligns[i-1].End-Aligns[i].Pos>=Args.MinSVLen)
+				int Dup=0;
+				if (Aligns[FormerI].End-Aligns[LatterI].Pos>Aligns[LatterI].Length)
 				{
 					Dup=1;
 				}
+				else if (Aligns[FormerI].End-Aligns[LatterI].Pos>Aligns[FormerI].Length)
+				{
+					Dup=1;
+				}
+				else
+				{
+					if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
+					{
+						Dup=1;
+					}
+				}
+				if (Dup)
+				{
+					// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
+					// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
+					Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End,bam_get_qname(br),br->core.qual);
+					pthread_mutex_lock(&Mut->m_Sig[2]);
+					TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
+					pthread_mutex_unlock(&Mut->m_Sig[2]);
+				}
 			}
-			if (Dup)
-			{
-				// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
-				// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
-				Signature TempSignature(2,Tech,2,Aligns[i].Pos,Aligns[i-1].End,bam_get_qname(br),br->core.qual);
-				pthread_mutex_lock(&Mut->m_Sig[2]);
-				Signatures.push_back(TempSignature);
-				pthread_mutex_unlock(&Mut->m_Sig[2]);
-			}
+			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
 		}
-		//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
+		break;
 	}
 }
 
 bool continuous(const Alignment& Former, const Alignment& Latter, unsigned Endurance)
 {
-	return true;
-	if(abs(Latter.Pos-Former.End)<Endurance && abs(Latter.InnerPos-Former.InnerEnd)<Endurance) return true;
+	// return true;
+	// if(abs(Latter.Pos-Former.End)<Endurance && abs(Latter.InnerPos-Former.InnerEnd)<Endurance) return true;
+	if (abs(Latter.Pos-Former.Pos)>1000000) return false;
+	if (Latter.Pos+Endurance>=Former.End && Latter.Pos>Former.Pos) return true;
 	return false;
 }
 
 void searchInvFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
-	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][3];
-	for (int i=1;i<Aligns.size();++i)
+	for (int i=0;i<Aligns.size()-1;++i)
 	{
-		if (Aligns[i-1].Strand==Aligns[i].Strand) continue;
-		int InvClipEndurance=1000;
-		if (continuous(Aligns[i-1],Aligns[i],InvClipEndurance))
+		for (int j=i+1;j<=i+1;++j)
 		{
-			if (i<Aligns.size()-1 && Aligns[i].Strand!=Aligns[i+1].Strand && continuous(Aligns[i],Aligns[i+1],InvClipEndurance))
+			if (Aligns[i].Strand==Aligns[j].Strand) continue;
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
+			int InvClipEndurance=1000;
+			int FormerI=i, LatterI=j;//k is always the middle one, former and latter is for ref position
+			if (Aligns[i].Strand==0)
 			{
-				Signature TempSignature(2,Tech,3,Aligns[i].Pos,Aligns[i].End,bam_get_qname(br),br->core.qual);
-				TempSignature.setInvLeft(true);
-				TempSignature.setInvRight(true);
-				pthread_mutex_lock(&Mut->m_Sig[3]);
-				Signatures.push_back(TempSignature);
-				pthread_mutex_unlock(&Mut->m_Sig[3]);
-				++i;
+				FormerI=j;
+				LatterI=i;
 			}
-			else
+			if (continuous(Aligns[FormerI],Aligns[LatterI],InvClipEndurance))
 			{
-				Signature Temp1Signature(2,Tech,3,Aligns[i-1].Pos,Aligns[i-1].End,bam_get_qname(br),br->core.qual);
-				Temp1Signature.setInvRight(true);
-				Signature Temp2Signature(2,Tech,3,Aligns[i].Pos,Aligns[i].End,bam_get_qname(br),br->core.qual);
-				Temp2Signature.setInvLeft(true);
-				pthread_mutex_lock(&Mut->m_Sig[3]);
-				Signatures.push_back(Temp1Signature);
-				Signatures.push_back(Temp2Signature);
-				pthread_mutex_unlock(&Mut->m_Sig[3]);
+				int k=0;
+				for (k=j+1;k<Aligns.size();++k)
+				{
+					if (Aligns[i].Cid!=Aligns[k].Cid) continue;
+					if (Aligns[i].Strand==0)
+					{
+						if (Aligns[j].Strand!=Aligns[k].Strand && continuous(Aligns[k],Aligns[j],InvClipEndurance)) break;
+					}
+					else
+					{
+						if (Aligns[j].Strand!=Aligns[k].Strand && continuous(Aligns[j],Aligns[k],InvClipEndurance)) break;
+					}
+				}
+				if (k!=Aligns.size())
+				{
+					Signature TempSignature(2,Tech,3,Aligns[j].Pos,Aligns[j].End,bam_get_qname(br),br->core.qual);
+					TempSignature.setInvLeft(true);
+					TempSignature.setInvRight(true);
+					pthread_mutex_lock(&Mut->m_Sig[3]);
+					TypeSignatures[Aligns[i].Cid][3].push_back(TempSignature);
+					pthread_mutex_unlock(&Mut->m_Sig[3]);
+					++i;
+				}
+				else
+				{
+					Signature Temp1Signature(2,Tech,3,Aligns[FormerI].Pos,Aligns[FormerI].End,bam_get_qname(br),br->core.qual);
+					Temp1Signature.setInvRight(true);
+					Signature Temp2Signature(2,Tech,3,Aligns[LatterI].Pos,Aligns[LatterI].End,bam_get_qname(br),br->core.qual);
+					Temp2Signature.setInvLeft(true);
+					pthread_mutex_lock(&Mut->m_Sig[3]);
+					TypeSignatures[Aligns[FormerI].Cid][3].push_back(Temp1Signature);
+					TypeSignatures[Aligns[FormerI].Cid][3].push_back(Temp2Signature);
+					pthread_mutex_unlock(&Mut->m_Sig[3]);
+				}
+				break;
 			}
 		}
 	}
@@ -509,12 +553,12 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		else if (k%6==5)
 		{
 			// printf(" %s",cigars);
-			if (abs(pos-br->core.pos)<=1000000)
+			// if (abs(pos-br->core.pos)<=1000000)
 			Aligns.push_back(Alignment(cid,pos,strand,cigars));
 		}
 		k+=1;
 	}
-	// sort(Aligns.data(),Aligns.data()+Aligns.size());
+	sort(Aligns.data(),Aligns.data()+Aligns.size());
 	// dealClipConflicts(Aligns,Args);//Careful use. Good for ont but not for sims.
 	// printf("name:%s; size:%lu;",bam_get_qname(br),Aligns.size());
 	// printf("name:%s; %d,%d,%d;",bam_get_qname(br),Aligns[0].Strand,Aligns[0].Pos,Aligns[0].Length);

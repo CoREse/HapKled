@@ -314,6 +314,16 @@ int main(int argc, const char* argv[])
 			oa << ContigTypeSignatures;
 			continue;
 		}
+		else
+		{
+			if (!ofs.is_open())
+				ofs.open("data/SigData.dat",ios::binary);
+			boost::archive::binary_oarchive oa(ofs);
+			oa << NumberOfCoverageWindows;
+			for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+			oa << AllPrimarySegments;
+			oa << ContigTypeSignatures;
+		}
 		#endif
 		// fprintf(stderr,"%u\n",Contigs[i].Size-1);
 		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
