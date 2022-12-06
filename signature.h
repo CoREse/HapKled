@@ -4,13 +4,31 @@
 #include <string>
 #include <vector>
 #include <tuple>
+#include "kled.h"
 
+#ifdef DEBUG
+#include <fstream>
+
+// include headers that implement a archive in simple text format
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/string.hpp>
+#include <boost/serialization/vector.hpp>
+#endif
 struct Segment
 {
     int Begin, End;
-    Segment(int Begin,int End);
+    Segment(int Begin=0,int End=0);
     bool operator==(const Segment &) const;
     bool operator<(const Segment &) const;
+    #ifdef DEBUG
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version)
+    {
+        ar & Begin;
+        ar & End;
+    }
+    #endif
 };
 
 class Signature
@@ -41,6 +59,27 @@ class Signature
     bool operator<(const Signature &Other) const;
     bool operator==(const Signature & Other) const;
     void setID(unsigned ID);
+    #ifdef DEBUG
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version)
+    {
+        ar & Type;
+        ar & Tech;
+        ar & SupportedSV;
+        ar & TemplateName;
+        ar & InsBases;
+        ar & Begin;
+        ar & End;
+        ar & CN;
+        ar & Segments;
+        ar & Length;
+        ar & InvLeft;
+        ar & InvRight;
+        ar & Quality;
+        ar & ID;
+        ar & Artificial;
+    }
+    #endif
 };
 
 int precisionLevel(const Signature &A);
@@ -56,6 +95,14 @@ struct SegmentSet
     void sortNStat();
     Segment& operator[](unsigned i);
     SegmentSet();
+    #ifdef DEBUG
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version)
+    {
+        ar & Segments;
+        ar & MaxEnds;
+    }
+    #endif
 };
 
 #endif

@@ -15,6 +15,14 @@
 #include <functional>
 #include <sstream>
 #include <iostream>
+#ifdef DEBUG
+#include <fstream>
+
+// include headers that implement a archive in simple text format
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+#endif
 using namespace std;
 using namespace cre;
 
@@ -136,7 +144,6 @@ int main(int argc, const char* argv[])
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
     OH.addOpt(0, "BC", 0, "", "Calling contig by contig, cost less memory.",'b',&(Args.CallByContig));
-    OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
     OH.addOpt(0, "CCS", 0, "", "Use default parameters for CCS data.",'b',&(Args.AllCCS));
     OH.addOpt(0, "CLR", 0, "", "Use default parameters for CLR data.",'b',&(Args.AllCLR));
     OH.addOpt(0, "DelClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for deletions, if later 3 not given or NearRange=-1 use single layer clustering.",'S',&(Args.CustomClusterParas[0]));
@@ -160,6 +167,13 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "InsClipTolerance", 1, "Size", "Insertion clip signature distance tolerance. (10)",'i',&(Args.InsClipTolerance));
     OH.addOpt(0, "InsMaxGapSize", 1, "Size", "Insertion clip signature max gap size. (50000)",'i',&(Args.InsMaxGapSize));
     OH.addOpt(0, "ClusteringBatchSize", 1, "Size", "Batch size of multihreading when clustering. (10000)",'i',&(Args.ClusteringBatchSize));
+	#ifdef DEBUG
+    OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
+	string WriteSigDataFileName="";
+	string ReadSigDataFileName="";
+    OH.addOpt(0, "WS", 1, "Data file name", "File name to write signature data",'S',&(WriteSigDataFileName));
+    OH.addOpt(0, "RS", 1, "Data file name", "File name to read signature data",'S',&(ReadSigDataFileName));
+	#endif
     OH.getOpts(argc,argv);
 
 	if (Args.ShowHelp)
@@ -193,7 +207,7 @@ int main(int argc, const char* argv[])
 
 	updateTime("Starting kled, reading reference...");
 	int NSeq;
-	Contig * Contigs=getContigs(Args.ReferenceFileName,NSeq);//,RDWindowSize);
+	Contig * Contigs=getContigs(Args,NSeq);//,RDWindowSize);
     
 	updateTime("Reading reference","Getting stats...");
 	vector<int> AllTechs=getAllTechs(Args);
@@ -229,6 +243,10 @@ int main(int argc, const char* argv[])
 		TypeSignatures.push_back(vector<vector<Signature>>());
 		for (int j=0;j<NumberOfSVTypes;++j) TypeSignatures[i].push_back(vector<Signature>());
 	}
+	#ifdef DEBUG
+	ifstream ifs;
+	ofstream ofs;
+	#endif
 	if (!Args.CallByContig)
 	{
 		for (int i=0;i<NSeq;++i)
@@ -240,9 +258,26 @@ int main(int argc, const char* argv[])
 			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 			double *CoverageWindows=new double[NumberOfCoverageWindows];
+			#ifdef DEBUG
+			if (ReadSigDataFileName!="")
+			{
+				if (!ifs.is_open())
+					ifs.open(ReadSigDataFileName.c_str(),ios::binary);
+				boost::archive::binary_iarchive ia(ifs);
+				ia >> NumberOfCoverageWindows;
+				for (int j=0;j<NumberOfCoverageWindows;++j) ia>>(CoverageWindows[j]);
+				ia >> AllPrimarySegments;
+				ia >> (TypeSignatures[i]);
+			}
+			else
+			{
+			#endif
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
 			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
 			AllPrimarySegments.sortNStat();
+			#ifdef DEBUG
+			}
+			#endif
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 			CoverageWindowsPs.push_back(CoverageWindows);
 		}
@@ -250,13 +285,13 @@ int main(int argc, const char* argv[])
 	for (int i=0;i<NSeq;++i)
 	{
 		if (! toCall(Contigs[i],Args)) continue;
+		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 		if (Args.CallByContig)
 		{
 			updateTime("","Calling...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
-			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
-			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 			double *CoverageWindows=new double[NumberOfCoverageWindows];
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
 			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
@@ -267,6 +302,19 @@ int main(int argc, const char* argv[])
 		double *CoverageWindows=CoverageWindowsPs[i];
 		SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
 		vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
+		#ifdef DEBUG
+		if (WriteSigDataFileName!="")
+		{
+			if (!ofs.is_open())
+				ofs.open(WriteSigDataFileName.c_str(),ios::binary);
+			boost::archive::binary_oarchive oa(ofs);
+			oa << NumberOfCoverageWindows;
+			for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+			oa << AllPrimarySegments;
+			oa << ContigTypeSignatures;
+			continue;
+		}
+		#endif
 		// fprintf(stderr,"%u\n",Contigs[i].Size-1);
 		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
 		CoverageWindows[0]=0;
@@ -414,6 +462,10 @@ int main(int argc, const char* argv[])
 		// free(CoverageWindowsSums);
 		// free(CheckPoints);
 	}
+	#ifdef DEBUG
+	if (ifs.is_open()) ifs.close();
+	if (ofs.is_open()) ofs.close();
+	#endif
 
 	//report(VariantsByContig);
 	fai_destroy(Ref);

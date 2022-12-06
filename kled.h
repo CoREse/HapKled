@@ -2,7 +2,11 @@
 #ifndef KLED_KLED_H
 #define KLED_KLED_H
 
+#define DEBUG
+
 #include <vector>
+#include <map>
+#include <string>
 
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
@@ -16,6 +20,7 @@ struct Arguments {
 	const char * ReferenceFileName=0;
 	std::vector<const char *> BamFileNames;
 	std::vector<const char *> CallingContigs;
+	std::map<std::string,int> ContigNameID;
 	std::string SampleName="*";
 	int ThreadN=8;
 	bool NoFilter=false;

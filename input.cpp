@@ -192,6 +192,7 @@ void swap(int &a, int &b)
 
 struct Alignment
 {
+	int Cid;//Contig id of mapping position
 	int Pos;
 	int Length;//Length in Reference
 	int End;
@@ -202,8 +203,8 @@ struct Alignment
 	int InnerEnd;
 	int ForwardPos;//for inner sort
 	int ForwardEnd;
-	Alignment(int Pos, int Strand, uint32_t* CIGARD, uint32_t CIGARN)
-	:Pos(Pos), Strand(Strand)
+	Alignment(int Cid, int Pos, int Strand, uint32_t* CIGARD, uint32_t CIGARN)
+	:Cid(Cid), Pos(Pos), Strand(Strand)
 	{
 		construct(Pos,Strand,CIGARD,CIGARN);
 	}
@@ -232,8 +233,9 @@ struct Alignment
 		}
 		for (int i =0;i<CIGARN;++i) CIGAR.push_back(CIGARD[i]);
 	}
-	Alignment(int Pos, int Strand, const char * CIGARS)
+	Alignment(int cid, int Pos, int Strand, const char * CIGARS)
 	{
+		this->Cid=cid;
 		size_t CIGARN=size_t(strlen(CIGARS));//sam_parse_cigar will reallocate if not enough
 		uint32_t * ca=(uint32_t*) malloc(CIGARN*sizeof(uint32_t));
 		CIGARN=sam_parse_cigar(CIGARS,NULL,&ca,&CIGARN);
@@ -261,34 +263,41 @@ string cigar2string(uint32_t* CIGARD, uint32_t CIGARN)
 void searchDelFromAligns(bam1_t *br, Contig& TheContig, vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
 	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][0];
-	for (int i=1;i<Aligns.size();++i)
+	for (int i=0;i<Aligns.size()-1;++i)
 	{
-		int i1=i-1,i2=i;
-		if (Aligns[i-1].Strand!=Aligns[i].Strand)
+		for (int j=i+1;j<Aligns.size();++j)
 		{
-			continue;
-			// if (i+1<Aligns.size())
+			if (Aligns[i].Strand!=Aligns[j].Strand || Aligns[i].Cid != Aligns[j].Cid)
+			{
+				continue;
+				// if (i+1<Aligns.size())
+				// {
+				// 	if (Aligns[i-1].Strand!=Aligns[i+1].Strand) continue;
+				// 	i2=i+1;
+				// }
+				// else continue;
+			}
+			// if (Aligns[i].Cid!=TheContig.ID)
 			// {
-			// 	if (Aligns[i-1].Strand!=Aligns[i+1].Strand) continue;
-			// 	i2=i+1;
+			// 	if (Aligns[i].Pos-Aligns[j].Pos>100000) continue;
 			// }
-			// else continue;
-		}
-		int FormerI=i1, LatterI=i2;
-		// if (Aligns[i-1].Strand==0)
-		// {
-		// 	FormerI=i2;
-		// 	LatterI=i1;
-		// }
-		// if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=Args.MinSVLen) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
-		if (Aligns[FormerI].End<Aligns[LatterI].Pos && Aligns[LatterI].Pos-Aligns[FormerI].End-(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd)>=Args.MinSVLen)
-		{
-			// int End=Aligns[FormerI].End+Aligns[LatterI].Pos-Aligns[FormerI].End-(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd);
-			int End=Aligns[LatterI].Pos;
-			Signature TempSignature(2,Tech,0,Aligns[FormerI].End,End,bam_get_qname(br),br->core.qual);
-			pthread_mutex_lock(&Mut->m_Sig[0]);
-			Signatures.push_back(TempSignature);
-			pthread_mutex_unlock(&Mut->m_Sig[0]);
+			int FormerI=i, LatterI=j;
+			// if (Aligns[i].Strand==0)
+			// {
+			// 	FormerI=j;
+			// 	LatterI=i;
+			// }
+			// if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=Args.MinSVLen) Signatures.push_back(Signature(2,Tech,0,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
+			if (Aligns[FormerI].End<Aligns[LatterI].Pos && Aligns[LatterI].Pos-Aligns[FormerI].End-(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd)>=Args.MinSVLen)
+			{
+				// int End=Aligns[FormerI].End+Aligns[LatterI].Pos-Aligns[FormerI].End-(Aligns[LatterI].InnerPos-Aligns[FormerI].InnerEnd);
+				int End=Aligns[LatterI].Pos;
+				Signature TempSignature(2,Tech,0,Aligns[FormerI].End,End,bam_get_qname(br),br->core.qual);
+				pthread_mutex_lock(&Mut->m_Sig[0]);
+				TypeSignatures[Aligns[i].Cid][0].push_back(TempSignature);
+				pthread_mutex_unlock(&Mut->m_Sig[0]);
+			}
+			break;//Get the first one only. Prevent duplicate
 		}
 	}
 }
@@ -476,21 +485,23 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	strcpy(SATag,SA_tag_char);
 	for (int i=0;i<SACharLen;++i) if (SATag[i]==',' || SATag[i]==';') SATag[i]='\0';
 	int k=0;
-	int pos,strand;
+	int pos,strand,cid;
 	const char * cigars;
 	pos=br->core.pos;
 	strand= read_is_forward(br)?1:0;
-	Aligns.push_back(Alignment(pos,strand,bam_get_cigar(br),br->core.n_cigar));
+	Aligns.push_back(Alignment(br->core.tid,pos,strand,bam_get_cigar(br),br->core.n_cigar));
 	for (int i=0;i<SACharLen;i+=strlen(SATag+i)+1)
 	{
 		if (k%6==0)//rname
 		{
-			if (strcmp(SATag+i,SamFile.Header->target_name[br->core.tid])!=0)//Pass other contig. Should be altered if want to do multi-chromosome sv.
+			if (Args.CallByContig && strcmp(SATag+i,SamFile.Header->target_name[br->core.tid])!=0)//Pass other contig. Should be altered if want to do multi-chromosome sv.
 			{
 				++k;
-				i+=strlen(SATag+i)+1;
+				// i+=strlen(SATag+i)+1;
 				for (;k%6!=0;++k) i+=strlen(SATag+i)+1;
+				continue;
 			}
+			cid=Args.ContigNameID[SATag+i];
 		}
 		else if (k%6==1) pos=atoi(SATag+i);//pos
 		else if (k%6==2) strand=SATag[i]=='+'?1:0;//strand
@@ -499,7 +510,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		{
 			// printf(" %s",cigars);
 			if (abs(pos-br->core.pos)<=1000000)
-			Aligns.push_back(Alignment(pos,strand,cigars));
+			Aligns.push_back(Alignment(cid,pos,strand,cigars));
 		}
 		k+=1;
 	}
@@ -1159,9 +1170,9 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 	}
 }
 
-Contig * getContigs(const char *ReferenceFileName, int& NSeq, int RDWindowSize)
+Contig * getContigs(Arguments & Args, int& NSeq, int RDWindowSize)
 {
-	faidx_t * Ref=fai_load(ReferenceFileName);
+	faidx_t * Ref=fai_load(Args.ReferenceFileName);
 	NSeq=faidx_nseq(Ref);
 	Contig * Contigs=(Contig*) malloc(sizeof(Contig)*(NSeq));
 	for (int i=0;i<(NSeq);++i)
@@ -1169,6 +1180,7 @@ Contig * getContigs(const char *ReferenceFileName, int& NSeq, int RDWindowSize)
 		const char * ContigName=faidx_iseq(Ref,i);
 		int SeqLen=faidx_seq_len(Ref,ContigName);
 		new (Contigs+i) Contig(i,ContigName, SeqLen);
+		Args.ContigNameID[ContigName]=i;
 	}
 	fai_destroy(Ref);
 	return Contigs;

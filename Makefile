@@ -2,7 +2,7 @@ CC=g++
 AR=ar
 #CPPFLAGS= -Wall -g -Lhtslib -lhts -Lcrelib -lcre optutils/opthelper.a --std=c++17
 CPPFLAGS= --std=c++17 -g -fopenmp
-LDFLAGS= -fopenmp 
+LDFLAGS= -fopenmp -lboost_iostreams -lboost_serialization
 HTSLIBDIR=htslib
 SUBMODULES=crelib $(HTSLIBDIR) optutils
 

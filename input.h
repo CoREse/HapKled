@@ -7,7 +7,7 @@
 #include "kled.h"
 #include "htslib/htslib/sam.h"
 
-Contig * getContigs(const char * ReferenceFN, int &NSeq, int WindowSize=100);
+Contig * getContigs(Arguments &Args, int &NSeq, int WindowSize=100);
 
 struct Stats
 {
