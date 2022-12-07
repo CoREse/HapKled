@@ -314,7 +314,7 @@ int main(int argc, const char* argv[])
 			oa << ContigTypeSignatures;
 			continue;
 		}
-		else
+		else if (ReadSigDataFileName=="")
 		{
 			if (!ofs.is_open())
 				ofs.open("data/SigData.dat",ios::binary);

@@ -97,7 +97,9 @@ struct Arguments {
 	std::string CustomFilterParas[NumberOfSVTypes]={"","","",""};
 	std::string CustomClusterParas[NumberOfSVTypes]={"","","",""};
 
-	int CallByContig=false;
+	bool CallByContig=false;
+	bool WeightPosLength=false;
+	bool WeightFilter=false;
 };
 
 #endif

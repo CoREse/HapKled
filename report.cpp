@@ -72,7 +72,7 @@ tuple<int,int> getConsensusSite(vector<Signature> &Signatures)
     return consensusFixed(Signatures,Signatures.size()/2,stdStat);
 }
 
-tuple<int,int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster, string SVType)
+tuple<int,int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster, string SVType, Arguments &Args)
 {
     
     unsigned long long llPos=0;
@@ -139,6 +139,24 @@ tuple<int,int,int> analyzeSignatureCluster(vector<Signature> &SignatureCluster, 
     //     // }
     // }
     // else
+    if (Args.WeightPosLength)
+    {
+        double WeightSum=0.0;
+        for (int i=CBegin;i<CEnd;++i)
+        {
+            WeightSum+=SignatureCluster[i].Quality;
+        }
+        double dPos=0, dMeanSVLen=0;
+        for (int i=CBegin;i<CEnd;++i)
+        {
+            dPos+=((double)SignatureCluster[i].Begin)*(SignatureCluster[i].Quality/WeightSum);
+            dMeanSVLen+=((double)SignatureCluster[i].Length)*(SignatureCluster[i].Quality/WeightSum);
+        }
+        Pos=dPos;
+        MeanSVLen=dMeanSVLen;
+        SVLen=MeanSVLen;
+    }
+    else
     {
         for (int i=CBegin;i<CEnd;++i)
         {
@@ -648,6 +666,28 @@ void VCFRecord::calcM3L(vector<Signature> & SignatureCluster)
     MaxLength=Lengths[Lengths.size()-1];
 }
 
+double getWeightSum(vector<Signature> & SignatureCluster)
+{
+    map<string,double> HighstTempQuality;
+    for (int i=0;i<SignatureCluster.size();++i)
+    {
+        if (HighstTempQuality.count(SignatureCluster[i].TemplateName)==0)
+        {
+            HighstTempQuality[SignatureCluster[i].TemplateName]=SignatureCluster[i].Quality;
+        }
+        else
+        {
+            HighstTempQuality[SignatureCluster[i].TemplateName]=max(HighstTempQuality[SignatureCluster[i].TemplateName],SignatureCluster[i].Quality);
+        }
+    }
+    double WeightSum=0;
+    for (auto iter=HighstTempQuality.begin();iter!=HighstTempQuality.end();++iter)
+    {
+        WeightSum+=iter->second;
+    }
+    return WeightSum;
+}
+
 int VN=0;
 
 VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
@@ -659,7 +699,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
     calcM3L(SignatureCluster);
-    tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType);
+    tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType, Args);
     int MeanSVLen=get<2>(Site);
     SVLen=get<1>(Site);
     Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
@@ -693,6 +733,11 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
         INFO="LR=";
         if (HasLeft) INFO+="L";
         if (HasRight) INFO+="R";
+    }
+    double Score=ST;
+    if (Args.WeightFilter)
+    {
+        Score=getWeightSum(SignatureCluster);
     }
     if (Args.NoFilter) Keep=true;
     // else if (ST*10+LS>117.11) Keep=true;
@@ -733,10 +778,10 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
             //     if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
             // }
         }
-        if (ST>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
+        if (Score>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
         else
         {
-            if (ST<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+            if (Score<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
             if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
             // if (abs(SVLen)>10000)
             // {
