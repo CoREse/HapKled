@@ -21,6 +21,7 @@
 #include <math.h>
 #include <algorithm>
 #include "htslib/thread_pool.h"
+#include <set>
 
 using namespace std;
 using namespace cre;
@@ -698,7 +699,10 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Handle
 				{
 					if(CurrentLength>=Args.MinSVLen)
 					{
-						Signature TempSignature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),br->core.qual,Allele.c_str());
+						int AS=bam_aux2i(bam_aux_get(br,"AS"));
+						int ClippedQLen=brGetClippedQlen(br);
+						double Quality=((double)AS)/((double)ClippedQLen);
+						Signature TempSignature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Quality,Allele.c_str());
 						pthread_mutex_lock(&Mut->m_Sig[1]);
 						Signatures.push_back(TempSignature);
 						pthread_mutex_unlock(&Mut->m_Sig[1]);
@@ -726,7 +730,10 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Handle
 	{
 		if(CurrentLength>=Args.MinSVLen)
 		{
-			Signature TempSignature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),br->core.qual,Allele.c_str());
+			int AS=bam_aux2i(bam_aux_get(br,"AS"));
+			int ClippedQLen=brGetClippedQlen(br);
+			double Quality=((double)AS)/((double)ClippedQLen);
+			Signature TempSignature(0,Tech,1,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),Quality,Allele.c_str());
 			pthread_mutex_lock(&Mut->m_Sig[1]);
 			Signatures.push_back(TempSignature);
 			pthread_mutex_unlock(&Mut->m_Sig[1]);
@@ -751,6 +758,8 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	double MergeScore=0;
 	vector<Segment> ShortSigs;
+	// set<int> IEnds;//recording i of merge ends
+	// set<int> SingleIs;
 	for (int i=0;i<n_cigar;++i)
 	{
 		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
@@ -758,6 +767,14 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 			// int rlen=bam_cigar2rlen(1,cigars+i);
 			int rlen=bam_cigar_oplen(cigars[i]);
 			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
+			// if (SingleIs.count(i)!=1)
+			// {
+			// 	Signature Temp(0,Tech,0,Begin,Begin+rlen,qname,MergeScore);
+			// 	pthread_mutex_lock(&Mut->m_Sig[0]);
+			// 	Signatures.push_back(Temp);
+			// 	pthread_mutex_unlock(&Mut->m_Sig[0]);
+			// 	SingleIs.insert(i);
+			// }
 			if (CurrentStart==-1)
 			{
 				CurrentStart=Begin;
@@ -776,26 +793,29 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 			// 	MinMaxMergeDis=Args.DelMinMaxMergeDis;
 			// 	MaxMergeDisPortion=Args.DelMaxMergePortion;
 			// }
-			if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
-			{
-				MergeScore=100-MergeScore;
-				if(CurrentLength>=Args.MinSVLen)
+				if (Begin-CurrentStart-CurrentLength>=(CurrentLength*MaxMergeDisPortion>MinMaxMergeDis?CurrentLength*MaxMergeDisPortion:MinMaxMergeDis))
 				{
-					Signature Temp(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname,MergeScore);
-					pthread_mutex_lock(&Mut->m_Sig[0]);
-					Signatures.push_back(Temp);
-					pthread_mutex_unlock(&Mut->m_Sig[0]);
+					MergeScore=100-MergeScore;
+					if(CurrentLength>=Args.MinSVLen)
+					{
+						int AS=bam_aux2i(bam_aux_get(br,"AS"));
+						int ClippedQLen=brGetClippedQlen(br);
+						double Quality=((double)AS)/((double)ClippedQLen);
+						Signature Temp(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname,Quality);
+						pthread_mutex_lock(&Mut->m_Sig[0]);
+						Signatures.push_back(Temp);
+						pthread_mutex_unlock(&Mut->m_Sig[0]);
+					}
+					// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
+					CurrentStart=Begin;
+					CurrentLength=rlen;
+					MergeScore=0;
 				}
-				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
-				CurrentStart=Begin;
-				CurrentLength=rlen;
-				MergeScore=0;
-			}
-			else
-			{
-				CurrentLength+=rlen;
-				MergeScore+=1;
-			}
+				else
+				{
+					CurrentLength+=rlen;
+					MergeScore+=1;
+				}
 			}
 		}
 		else if (bam_cigar_op(cigars[i])==BAM_CDEL)
