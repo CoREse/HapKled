@@ -98,9 +98,9 @@ struct Arguments {
 	std::string CustomClusterParas[NumberOfSVTypes]={"","","",""};
 
 	bool CallByContig=false;
-	bool WeightPosLength=true;
-	bool WeightFilter=true;
-	bool IndependantMerge=true;
+	bool WeightPosLength=false;
+	bool WeightFilter=false;
+	bool IndependantMerge=false;
 };
 
 #endif
