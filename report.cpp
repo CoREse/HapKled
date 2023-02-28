@@ -815,6 +815,29 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     FILTER="PASS";
     CHROM=TheContig.Name;
     // Cluster=SignatureCluster;
+    #ifdef DEBUG
+    MergeStrings="";
+    if (SVType=="DEL")
+    {
+        int MSMaxOut=3;
+        int MSCount=0;
+        for (int i=0;i<SignatureCluster.size();++i)
+        {
+            if (SignatureCluster[i].MergeString!="")
+            {
+                if (MSCount>=MSMaxOut)
+                {
+                    MergeStrings+="...";
+                    break;
+                }
+                string MSub=SignatureCluster[i].MergeString.substr(SignatureCluster[i].MergeString.find('['),SignatureCluster[i].MergeString.find(']'));
+                int MCount=count(MSub.begin(),MSub.end(),'D');
+                MergeStrings+=(MCount==1?"":"*")+SignatureCluster[i].MergeString+":";
+                ++MSCount;
+            }
+        }
+    }
+    #endif
 }
 
 void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, double CC, Arguments & Args)
@@ -859,7 +882,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     free(TSeq);
     ++Pos;++End;//trans to 1-based
     if (INFO!="") INFO+=";";
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength);
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
 }
 
 VCFRecord::operator std::string() const
@@ -958,6 +981,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","CC","Average coverage of this contig.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","CR","Core ratio.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","M3L","(min length, medium length, max length).","3","Integer"));
+    DEBUG_CODE(Header.addHeaderEntry(HeaderEntry("INFO","MSs","MergeStrings.","1","String"));)
     // Header.addHeaderEntry(HeaderEntry("INFO","CS","Nearby coverage for genotyping.(by windows)","1","Float"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));

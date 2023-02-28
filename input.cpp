@@ -809,6 +809,27 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 	{
 		Begins[i]=-1;
 	}
+	#ifdef DEBUG
+	vector<string> MergeStrings;
+	int Cumulated=0;
+	map<int,int> ItoD;
+	int PassedD=0;
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			MergeStrings.push_back(to_string(Cumulated)+"M"+to_string(bam_cigar_oplen(cigars[i]))+"D");
+			Cumulated=0;
+			ItoD[i]=PassedD;
+			++PassedD;
+		}
+		else
+		{
+			// if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Cumulated+=bam_cigar_oplen(cigars[i]);
+			Cumulated+=bam_cigar_oplen(cigars[i]);
+		}
+	}
+	#endif
 	for (int i=0;i<n_cigar;++i)
 	{
 		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
@@ -853,6 +874,20 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 						if (!Args.IndependantMerge || ( Args.IndependantMerge && IEnds.count(i)==0))
 						{
 							Signature Temp(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname,Quality);
+							#ifdef DEBUG
+								string MergeString="";
+								for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
+								MergeString+="[";
+								for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
+								if (MergeString.find("5004M33D10682M59D")!=string::npos)
+								{
+									MergeString=MergeString;
+								}
+								MergeString+="]";
+								for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
+								Temp.setMergeString(MergeString);
+								// fprintf(stderr, Temp.MergeString.c_str());
+							#endif
 							pthread_mutex_lock(&Mut->m_Sig[0]);
 							// int pb=max(BeginI-10,0);
 							// int pe=min(i+10,int(n_cigar));

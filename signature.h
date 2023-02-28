@@ -49,6 +49,7 @@ class Signature
     double Quality;//Signature quality, the higher the better
     unsigned ID;
     bool Artificial;//Merged merging template
+    DEBUG_CODE(std::string MergeString;)
     Signature();
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, double Quality, const char * InsBases="");
     Signature(int Type, int Tech, int SupportedSV, int Begin, int End, std::string TemplateName, double Quality, Segment Read1, Segment Read2, int Length);//for drp Signatures
@@ -78,6 +79,11 @@ class Signature
         ar & Quality;
         ar & ID;
         ar & Artificial;
+        ar & MergeString;
+    }
+    void setMergeString(std::string MS)
+    {
+        MergeString=MS;
     }
     #endif
 };

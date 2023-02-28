@@ -2,7 +2,15 @@
 #ifndef KLED_KLED_H
 #define KLED_KLED_H
 
-#define DEBUG
+// #define DEBUG
+
+#define COMMA ,
+
+#ifdef DEBUG
+#define DEBUG_CODE(Code) Code
+#else
+#define DEBUG_CODE(Code) 
+#endif
 
 #include <vector>
 #include <map>

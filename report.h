@@ -57,6 +57,7 @@ class VCFRecord
     bool Precise;
     std::string InsConsensus;
     int SVTypeI;
+    DEBUG_CODE(std::string MergeStrings;)
     //temp
     // double CS;
     // std::vector<Signature> Cluster;
