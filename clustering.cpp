@@ -619,47 +619,6 @@ void batchClustering(vector<Signature> & SortedSignatures, vector<vector<Signatu
 
 void mergeClusters(vector<vector<Signature>> &Clusters, Stats BamStats, Arguments& Args)
 {
-    // vector<vector<vector<Signature>>> CClusters;
-    // for (int i=0;i<Clusters.size();++i)
-    // {
-    //     vector<vector<Signature>> C;
-    //     C.push_back(Clusters[i]);
-    //     CClusters.push_back(C);
-    // }
-    // for (int i=0;i<CClusters.size();++i)
-    // {
-    //     if (CClusters[i].size()==0) continue;
-    //     for (int j=0;j<Clusters.size();++j)
-    //     {
-    //         if (j==i) continue;
-    //         if (CClusters[j].size()==0) continue;
-    //         bool Merged=false;
-    //         for (int k=0;k<CClusters[i].size();++k)
-    //         {
-    //             if (Merged) break;
-    //             for (int m=0;m<CClusters[j].size();++m)
-    //             if(clustersCanMerge(CClusters[i][k],CClusters[j][m]))
-    //             {
-    //                 CClusters[i].insert(CClusters[i].end(),make_move_iterator(CClusters[j].begin()),make_move_iterator(CClusters[j].end()));
-    //                 if(CClusters[j].size()!=0) CClusters[j].clear();
-    //                 Merged=true;
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-    // Clusters.clear();
-    // for (int i=0;i<CClusters.size();++i)
-    // {
-    //     if (CClusters[i].size()!=0)
-    //     {
-    //         Clusters.push_back(CClusters[i][0]);
-    //         for (int j=1;j<CClusters[i].size();++j)
-    //         {
-    //             Clusters[Clusters.size()-1].insert(Clusters[Clusters.size()-1].end(),make_move_iterator(CClusters[i][j].begin()),make_move_iterator(CClusters[i][j].end()));
-    //         }
-    //     }
-    // }
     for (int i=0;i<Clusters.size();++i)
     {
         if (Clusters[i].size()==0) continue;

@@ -976,56 +976,6 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 	// }
 }
 
-// void getDelFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, HandleBrMutex *Mut, Arguments & Args)
-// {
-// 	if (br->core.qual<Args.MinMappingQuality) return;
-// 	return getDelFromCigar(bam_get_cigar(br), br->core.n_cigar, br->core.pos, bam_get_qname(br), br->core.qual, Tech, Signatures, Mut, Args);
-// 	int TLength= bam_cigar2qlen(br->core.n_cigar,bam_get_cigar(br));
-// 	if (TLength<Args.MinTemplateLength) return;
-// 	uint32_t * cigars=bam_get_cigar(br);
-// 	int CurrentStart=-1, CurrentLength=0;
-// 	int Begin=br->core.pos;
-// 	//int MergeDis=500;
-// 	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
-// 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
-// 	for (int i=0;i<br->core.n_cigar;++i)
-// 	{
-// 		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
-// 		{
-// 			// int rlen=bam_cigar2rlen(1,cigars+i);
-// 			int rlen=bam_cigar_oplen(cigars[i]);
-// 			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
-// 			if (CurrentStart==-1)
-// 			{
-// 				CurrentStart=Begin;
-// 				CurrentLength=rlen;
-// 			}
-// 			else
-// 			{
-// 			if (Begin-CurrentStart-CurrentLength>=MIN(Args.DelMaxMaxMergeDis,MAX(CurrentLength*MaxMergeDisPortion,MinMaxMergeDis)))
-// 			{
-// 				if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),br->core.qual));
-// 				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
-// 				CurrentStart=Begin;
-// 				CurrentLength=rlen;
-// 			}
-// 			else
-// 			{
-// 				CurrentLength+=rlen;
-// 			}
-// 			}
-// 		}
-// 		//Those 4 kinds of op add ref
-// 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
-// 		//Begin+=bam_cigar2rlen(1,cigars+i);
-// 	}
-// 	if (CurrentStart!=-1)
-// 	{
-// 		if(CurrentLength>=Args.MinSVLen) Signatures.push_back(Signature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,bam_get_qname(br),br->core.qual));
-// 				// printf("%d %d %s\n",CurrentStart,CurrentLength,bam_get_qname(br));
-// 	}
-// }
-
 struct HandleBrArgs
 {
 	bam1_t *br;
@@ -1083,75 +1033,6 @@ void * handlebrWrapper(void * args)
 	delete A;
 	return NULL;
 }
-
-/*
-void handleBrBlock(BrBlock * TheBlock, Contig * Contigs, int * CordinTrans, int& ReadCount, int & UnmappedCount)
-{
-	int BlockReadCount=0, BlockUnmappedCount=0;
-	int BrReadCount=0,BrUnmappedCount=0;
-	for (int i=0;i<TheBlock->Count;++i)
-	{
-		BrReadCount=0;
-		BrUnmappedCount=0;
-		handlebr(TheBlock->Block+i,Contigs,CordinTrans,BrReadCount,BrUnmappedCount);
-		BlockReadCount+=BrReadCount;
-		BlockUnmappedCount+=BrUnmappedCount;
-	}
-	WriteLock.lock();
-	ReadCount+=BlockReadCount;
-	UnmappedCount+=BlockUnmappedCount;
-	WriteLock.unlock();
-}
-
-void getBlockAndProcess(BrBlock ** UpMostBlock, Contig * Contigs, int * CordinTrans, int& ReadCount, int & UnmappedCount)
-{
-	while (true)
-	{
-		if ((*UpMostBlock)->Over) break;
-		TopLock.lock();
-		if (*UpMostBlock==NULL || !((*UpMostBlock)->Mature))
-		{
-			TopLock.unlock();
-			sleep(1);
-		}
-		else
-		{
-			BrBlock * TheBlock=*UpMostBlock;
-			if (TheBlock->Over)
-			{
-				TopLock.unlock();
-				break;
-			}
-			else *UpMostBlock=(*UpMostBlock)->Next;
-			TopLock.unlock();
-			handleBrBlock(TheBlock,Contigs,CordinTrans,ReadCount,UnmappedCount);
-			delete TheBlock;
-		}
-	}
-}
-
-void readBamToBrBlock(htsFile * SamFile,bam_hdr_t *Header, BrBlock** Top)
-{
-	BrBlock * TheBlock=new BrBlock();
-	TheBlock->Next=new BrBlock();
-	while (sam_read1(SamFile, Header, TheBlock->Block+TheBlock->Count) >=0)
-	{
-		++TheBlock->Count;
-		if (TheBlock->Count>=TheBlock->Size)
-		{
-			TheBlock->Mature=true;
-			if (*Top==NULL)//The only one who could fill NULL top
-			{
-				*Top=TheBlock;
-			}
-			TheBlock=TheBlock->Next;
-			TheBlock->Next=new BrBlock();
-		}
-	}
-	TheBlock->Mature=true;
-	TheBlock->Next->Over=true;
-}
-*/
 
 void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, HandleBrMutex *Mut, Arguments & Args, FILE* Pipe=stdin)
 {
