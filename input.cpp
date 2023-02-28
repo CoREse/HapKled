@@ -803,6 +803,7 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 	double Quality=((double)AS)/((double)ClippedQLen);
 	set<int> IEnds;//recording i of merge ends
 	set<int> SingleIs;
+	//for retrospection
 	int Begins[n_cigar];
 	int BeginI=-1;
 	for (int i=0;i<n_cigar;++i)
@@ -929,10 +930,33 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 		// LastBegin=Begin;
 		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
 		//Begin+=bam_cigar2rlen(1,cigars+i);
+		//it doesn't make any sense if there is a insertion detected within a deletion
+		if (bam_cigar_op(cigars[i])==1 && bam_cigar_oplen(cigars[i]>=Args.BreakerLength))
+		{
+			MergeScore=100-MergeScore*1;
+			if(CurrentLength>=Args.MinSVLen)
+			{
+				Signature TempSignature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname,Quality);
+				pthread_mutex_lock(&Mut->m_Sig[0]);
+				Signatures.push_back(TempSignature);
+				pthread_mutex_unlock(&Mut->m_Sig[0]);
+			}
+			if (Args.IndependantMerge)
+			{
+				i=BeginI;
+				Begin=Begins[i];
+				CurrentStart=-1;
+			}
+			else
+			{
+				CurrentStart=-1;
+				CurrentLength=0;
+			}
+			MergeScore=0;
+		}
 	}
 	if (CurrentStart!=-1)
 	{
-		MergeScore=100-MergeScore*1;
 		if(CurrentLength>=Args.MinSVLen)
 		{
 			Signature TempSignature(0,Tech,0,CurrentStart,CurrentStart+CurrentLength,qname,Quality);

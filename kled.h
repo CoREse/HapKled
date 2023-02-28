@@ -42,6 +42,7 @@ struct Arguments {
 	double DelMaxMergePortion=0.2;
 	int CoverageWindowSize=100;
 	int InsClipTolerance=10;
+	int BreakerLength=50;//It doesn't make any sense if there is a insertion detected within a deletion, there for merge breaks when meet a long insertion
 	int InsMaxGapSize=50000;
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	int ClusteringMaxMergeRange=20000;
