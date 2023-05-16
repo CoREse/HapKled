@@ -282,9 +282,14 @@ int main(int argc, const char* argv[])
 			CoverageWindowsPs.push_back(CoverageWindows);
 		}
 	}
+	int Skipped=0;
 	for (int i=0;i<NSeq;++i)
 	{
-		if (! toCall(Contigs[i],Args)) continue;
+		if (! toCall(Contigs[i],Args))
+		{
+			++Skipped;
+			continue;
+		}
 		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 		if (Args.CallByContig)
@@ -299,8 +304,8 @@ int main(int argc, const char* argv[])
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 			CoverageWindowsPs.push_back(CoverageWindows);
 		}
-		double *CoverageWindows=CoverageWindowsPs[i];
-		SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
+		double *CoverageWindows=CoverageWindowsPs[i-Skipped];
+		SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i-Skipped];
 		vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
 		#ifdef DEBUG
 		if (WriteSigDataFileName!="")
