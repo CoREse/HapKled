@@ -22,6 +22,7 @@
 #include <algorithm>
 #include "htslib/thread_pool.h"
 #include <set>
+#include "merge.h"
 
 using namespace std;
 using namespace cre;
@@ -41,6 +42,7 @@ struct HandleBrMutex
 	pthread_mutex_t m_AllPrimarySeg;
 	pthread_mutex_t m_Cov;
 	pthread_mutex_t m_Sig[NumberOfSVTypes];
+	pthread_mutex_t m_AlignmentsSigs;
 	HandleBrMutex()
 	{
 		pthread_mutex_init(&m_AllPrimarySeg,NULL);
@@ -49,6 +51,7 @@ struct HandleBrMutex
 		{
 			pthread_mutex_init(m_Sig+i,NULL);
 		}
+		pthread_mutex_init(&m_AlignmentsSigs,NULL);
 	}
 };
 
@@ -156,7 +159,7 @@ int getClippedQLen(uint32_t CIGARN, uint32_t* CIGARD)
 		Start=1;
 		--N;
 	}
-	if (bam_cigar_op(CIGARD[N])==BAM_CSOFT_CLIP || bam_cigar_op(CIGARD[N])==BAM_CHARD_CLIP)
+	if (bam_cigar_op(CIGARD[CIGARN-1])==BAM_CSOFT_CLIP || bam_cigar_op(CIGARD[CIGARN-1])==BAM_CHARD_CLIP)
 	{
 		--N;
 	}
@@ -206,21 +209,23 @@ struct Alignment
 	int InnerEnd;
 	int ForwardPos;//for inner sort
 	int ForwardEnd;
+	// int ReadLength;
+	// int FirstCIGAR;
 	Alignment(int Cid, int Pos, int Strand, uint32_t* CIGARD, uint32_t CIGARN, int mapQ, int NM)
 	:Cid(Cid), Pos(Pos), Strand(Strand), MapQ(mapQ), NM(NM)
 	{
-		construct(Pos,Strand,CIGARD,CIGARN);
+		construct(CIGARD,CIGARN);
 	}
-	void construct(int Pos, int Strand, uint32_t* CIGARD, uint32_t CIGARN)
+	void construct(uint32_t* CIGARD, uint32_t CIGARN)
 	{
-		this->Pos=Pos;
-		this->Strand=Strand;
 		Length=bam_cigar2rlen(CIGARN, CIGARD);
 		End=Pos+Length;
+		// FirstCIGAR=CIGARD[0];
 		if (bam_cigar_opchr(*CIGARD)=='H' || bam_cigar_opchr(*CIGARD)=='S') InnerPos=bam_cigar_oplen(*CIGARD);
 		else InnerPos=0;
 		InnerLength=getClippedQLen(CIGARN,CIGARD);
 		InnerEnd=InnerPos+InnerLength;
+		// ReadLength=getReadLength(CIGARN,CIGARD);
 		if (Strand==0)
 		{
 			int ReadLength=getReadLength(CIGARN,CIGARD);
@@ -236,20 +241,21 @@ struct Alignment
 		}
 		for (int i =0;i<CIGARN;++i) CIGAR.push_back(CIGARD[i]);
 	}
-	Alignment(int cid, int Pos, int Strand, const char * CIGARS, int MapQ, int NM)
+	Alignment(int Cid, int Pos, int Strand, const char * CIGARS, int MapQ, int NM)
+	:Cid(Cid), Pos(Pos), Strand(Strand), MapQ(MapQ), NM(NM)
 	{
-		this->Cid=cid;
-		this->MapQ=MapQ;
-		this->NM=NM;
 		size_t CIGARN=size_t(strlen(CIGARS));//sam_parse_cigar will reallocate if not enough
 		uint32_t * ca=(uint32_t*) malloc(CIGARN*sizeof(uint32_t));
-		CIGARN=sam_parse_cigar(CIGARS,NULL,&ca,&CIGARN);
-		construct(Pos,Strand,ca,CIGARN);
+		int Processed=sam_parse_cigar(CIGARS,NULL,&ca,&CIGARN);
+		if (Processed==-1) throw -1;
+		CIGARN=Processed;
+		construct(ca,CIGARN);
 		free(ca);
 	}
 	bool operator<(const Alignment &other) const
 	{
-		return this->ForwardPos<other.ForwardPos;
+		if (this->Cid==other.Cid) return this->ForwardPos<other.ForwardPos;
+		return this->Cid<other.Cid;
 		// return this->InnerPos<other.InnerPos;
 	}
 	double getQuality()
@@ -271,7 +277,7 @@ string cigar2string(uint32_t* CIGARD, uint32_t CIGARN)
 
 void searchDelFromAligns(bam1_t *br, Contig& TheContig, vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
-	vector<Signature> &Signatures=TypeSignatures[TheContig.ID][0];
+	// vector<Signature> &Signatures=TypeSignatures[TheContig.ID][0];
 	for (int i=0;i<Aligns.size()-1;++i)
 	{
 		for (int j=i+1;j<Aligns.size();++j)
@@ -316,6 +322,7 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	{
 		for (int j=i+1;j<Aligns.size();++j)
 		{
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
 			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
 			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
 			int FormerI=i, LatterI=j;
@@ -345,6 +352,7 @@ void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	{
 		for (int j=0;j<Aligns.size();++j)
 		{
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
 			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
 			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
 			// vector<Segment> v;
@@ -554,7 +562,14 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	const char * cigars;
 	pos=br->core.pos;
 	strand= read_is_forward(br)?1:0;
-	Aligns.push_back(Alignment(br->core.tid,pos,strand,bam_get_cigar(br),br->core.n_cigar,br->core.qual,bam_aux2i(bam_aux_get(br,"NM"))));
+	NM=0;
+	// if (string("a03d97b4-835f-4770-a4d1-6ce8af10d71e")==bam_get_qname(br))
+	// {
+	// 	fprintf(stderr,"here\n");
+	// }
+	uint8_t * NMP=bam_aux_get(br,"NM");
+	if (NMP!=NULL) NM=bam_aux2i(NMP);
+	Aligns.push_back(Alignment(br->core.tid,pos,strand,bam_get_cigar(br),br->core.n_cigar,br->core.qual,NM));
 	for (int i=0;i<SACharLen;i+=strlen(SATag+i)+1)
 	{
 		if (k%6==0)//rname
@@ -583,11 +598,16 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	}
 	sort(Aligns.data(),Aligns.data()+Aligns.size());
 	// dealClipConflicts(Aligns,Args);//Careful use. Good for ont but not for sims.
-	// printf("name:%s; size:%lu;",bam_get_qname(br),Aligns.size());
-	// printf("name:%s; %d,%d,%d;",bam_get_qname(br),Aligns[0].Strand,Aligns[0].Pos,Aligns[0].Length);
-	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length);
-	// for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
+	// pthread_mutex_lock(&Mut->m_Sig[1]);
+	// printf("name:%s; size:%lu; SA:%s;",bam_get_qname(br),Aligns.size(),bam_get_string_tag(br, "SA"));
+	// // printf("name:%s; %d,%d,%d;",bam_get_qname(br),Aligns[0].Strand,Aligns[0].Pos,Aligns[0].Length);
+	// for (int i=0;i<Aligns.size();++i){
+	// 	printf(" %d,%d,%d,%d,%d,%d,%d,CIGAR:",Aligns[i].Strand,Aligns[i].Pos,Aligns[i].Length,Aligns[i].InnerPos,Aligns[i].InnerEnd,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
+	// 	if (i!=0) for (int j=0;j<Aligns[i].CIGAR.size();++j) printf("%lu%c,",bam_cigar_oplen(Aligns[i].CIGAR[j]),bam_cigar_opchr(Aligns[i].CIGAR[j]));
+	// 	}
+	// // for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
+	// pthread_mutex_unlock(&Mut->m_Sig[1]);
 	// for (int i=0;i<Aligns.size();++i)
 	// {
 	// 	statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
@@ -665,6 +685,88 @@ void getDRPSignature(bam1_t * br, Stats& SampleStats, HandleBrMutex *Mut, Contig
 	}
 }
 const char * BamBases="NACNGNNNTNNNNNNN";
+inline void getInsFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures, Arguments & Args)
+{
+	if (br->core.qual<Args.MinMappingQuality) return;
+	uint32_t * cigars=bam_get_cigar(br);
+	unsigned n_cigar=br->core.n_cigar, pos=br->core.pos;
+	const char * qname=bam_get_qname(br);
+	int qual=br->core.qual;
+// 	return getDelFromCigar(bam_get_cigar(br), br->core.n_cigar, br->core.pos, bam_get_qname(br), br->core.qual, Tech, Signatures, Mut, Args);
+	int TLength= bam_cigar2qlen(n_cigar,cigars);
+	if (TLength<Args.MinTemplateLength) return;
+	int Begin=pos;
+	int QueryBegin=0;
+	//int MergeDis=500;
+	int MinMaxMergeDis=Args.InsMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
+	double MergeScore=0;
+	int AS=0;
+	uint8_t * ASP=bam_aux_get(br,"AS");
+	if (ASP!=NULL) AS=bam_aux2i(ASP);
+	int ClippedQLen=brGetClippedQlen(br);
+	double Quality=((double)AS)/((double)ClippedQLen);
+	int MinSigLen=Args.MinSVLen;
+	string Allele="";
+	// if (Args.OmniMerge) MinSigLen=10;
+	#ifdef DEBUG
+	vector<string> MergeStrings;
+	int Cumulated=0;
+	map<int,int> ItoD;
+	int PassedD=0;
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			MergeStrings.push_back(to_string(Cumulated)+"M"+to_string(bam_cigar_oplen(cigars[i]))+"D");
+			Cumulated=0;
+			ItoD[i]=PassedD;
+			++PassedD;
+		}
+		else
+		{
+			// if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Cumulated+=bam_cigar_oplen(cigars[i]);
+			Cumulated+=bam_cigar_oplen(cigars[i]);
+		}
+	}
+	#endif
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CINS && bam_cigar_oplen(cigars[i])>=MinSigLen)
+		{
+			// int rlen=bam_cigar2rlen(1,cigars+i);
+			// int rlen=bam_cigar_oplen(cigars[i]);
+			int qlen=bam_cigar_oplen(cigars[i]);
+			if(qlen>=MinSigLen)
+			{
+				Allele="";
+				for (int j=0;j<qlen;++j)
+				{
+					Allele+=BamBases[bam_seqi(bam_get_seq(br),QueryBegin+j)];
+				}
+				assert(Allele.size()==qlen);
+				Signature Temp(0,Tech,1,Begin,Begin+qlen,qname,Quality,Allele.c_str());//for clustering and later processing, the end shall become Begin+qlen(Allele.size())
+				#ifdef DEBUG
+					string MergeString="";
+					for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
+					MergeString+="[";
+					for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
+					if (MergeString.find("5004M33D10682M59D")!=string::npos)
+					{
+						MergeString=MergeString;
+					}
+					MergeString+="]";
+					for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
+					Temp.setMergeString(MergeString);
+					// fprintf(stderr, Temp.MergeString.c_str());
+				#endif
+				Signatures.push_back(Temp);
+			}
+		}
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==1||bam_cigar_op(cigars[i])==4||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) QueryBegin+=bam_cigar_oplen(cigars[i]);
+	}
+}
 void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, HandleBrMutex *Mut, Arguments & Args)
 {
 	if (br->core.qual<Args.MinMappingQuality) return;
@@ -679,7 +781,9 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Handle
 	//int MergeDis=500;
 	int MinMaxMergeDis=Args.InsMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
-	int AS=bam_aux2i(bam_aux_get(br,"AS"));
+	int AS=0;
+	uint8_t * ASP=bam_aux_get(br,"AS");
+	if (ASP!=NULL) AS=bam_aux2i(ASP);
 	int ClippedQLen=brGetClippedQlen(br);
 	double Quality=((double)AS)/((double)ClippedQLen);
 	set<int> IEnds;//recording i of merge ends
@@ -707,13 +811,13 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Handle
 			int qlen=bam_cigar_oplen(cigars[i]);
 			// printf("%d %d %s\n",Begin,rlen,bam_get_qname(br));
 			string ThisAllele="";
+			for (int j=0;j<qlen;++j)
+			{
+				ThisAllele+=BamBases[bam_seqi(bam_get_seq(br),QueryBegin+j)];
+			}
 			if (Args.IndependantMerge && SingleIs.count(i)!=1)
 			{
-				for (int j=0;j<qlen;++j)
-				{
-					ThisAllele+=BamBases[bam_seqi(bam_get_seq(br),QueryBegin+j)];
-				}
-				Signature Temp(0,Tech,0,Begin,Begin+qlen,bam_get_qname(br),Quality,ThisAllele.c_str());
+				Signature Temp(0,Tech,1,Begin,Begin+qlen,bam_get_qname(br),Quality,ThisAllele.c_str());
 				pthread_mutex_lock(&Mut->m_Sig[1]);
 				Signatures.push_back(Temp);
 				pthread_mutex_unlock(&Mut->m_Sig[1]);
@@ -781,8 +885,9 @@ void getInsFromCigar(bam1_t *br, int Tech, vector<Signature>& Signatures, Handle
 	}
 }
 
-inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures, HandleBrMutex *Mut, Arguments & Args)
+inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures, Arguments & Args)
 {
+	if (br->core.qual<Args.MinMappingQuality) return;
 	uint32_t * cigars=bam_get_cigar(br);
 	unsigned n_cigar=br->core.n_cigar, pos=br->core.pos;
 	const char * qname=bam_get_qname(br);
@@ -798,7 +903,97 @@ inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 	float MaxMergeDisPortion=Args.DelMaxMergePortion;
 	double MergeScore=0;
 	vector<Segment> ShortSigs;
-	int AS=bam_aux2i(bam_aux_get(br,"AS"));
+	int AS=0;
+	uint8_t * ASP=bam_aux_get(br,"AS");
+	if (ASP!=NULL) AS=bam_aux2i(ASP);
+	int ClippedQLen=brGetClippedQlen(br);
+	double Quality=((double)AS)/((double)ClippedQLen);
+	set<int> IEnds;//recording i of merge ends
+	set<int> SingleIs;
+	//for retrospection
+	int Begins[n_cigar];
+	int BeginI=-1;
+	for (int i=0;i<n_cigar;++i)
+	{
+		Begins[i]=-1;
+	}
+	int MinSigLen=Args.MinSVLen;
+	// if (Args.OmniMerge) MinSigLen=10;
+	#ifdef DEBUG
+	vector<string> MergeStrings;
+	int Cumulated=0;
+	map<int,int> ItoD;
+	int PassedD=0;
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=Args.MinSVLen)
+		{
+			MergeStrings.push_back(to_string(Cumulated)+"M"+to_string(bam_cigar_oplen(cigars[i]))+"D");
+			Cumulated=0;
+			ItoD[i]=PassedD;
+			++PassedD;
+		}
+		else
+		{
+			// if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Cumulated+=bam_cigar_oplen(cigars[i]);
+			Cumulated+=bam_cigar_oplen(cigars[i]);
+		}
+	}
+	#endif
+	for (int i=0;i<n_cigar;++i)
+	{
+		if (bam_cigar_op(cigars[i])==BAM_CDEL && bam_cigar_oplen(cigars[i])>=MinSigLen)
+		{
+			if (Begins[i]!=-1) Begin=Begins[i];//not the first time
+			Begins[i]=Begin;
+			// int rlen=bam_cigar2rlen(1,cigars+i);
+			int rlen=bam_cigar_oplen(cigars[i]);
+			CurrentLength=rlen;
+			if(CurrentLength>=MinSigLen)
+			{
+				Signature Temp(0,Tech,0,Begin,Begin+rlen,qname,Quality);
+				#ifdef DEBUG
+					string MergeString="";
+					for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
+					MergeString+="[";
+					for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
+					if (MergeString.find("5004M33D10682M59D")!=string::npos)
+					{
+						MergeString=MergeString;
+					}
+					MergeString+="]";
+					for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
+					Temp.setMergeString(MergeString);
+					// fprintf(stderr, Temp.MergeString.c_str());
+				#endif
+				Signatures.push_back(Temp);
+			}
+		}
+		if (bam_cigar_op(cigars[i])==0 ||bam_cigar_op(cigars[i])==2||bam_cigar_op(cigars[i])==7||bam_cigar_op(cigars[i])==8) Begin+=bam_cigar_oplen(cigars[i]);
+	}
+}
+
+inline void getDelFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures, HandleBrMutex *Mut, Arguments & Args)
+{
+	if (br->core.qual<Args.MinMappingQuality) return;
+	uint32_t * cigars=bam_get_cigar(br);
+	unsigned n_cigar=br->core.n_cigar, pos=br->core.pos;
+	const char * qname=bam_get_qname(br);
+	int qual=br->core.qual;
+// 	return getDelFromCigar(bam_get_cigar(br), br->core.n_cigar, br->core.pos, bam_get_qname(br), br->core.qual, Tech, Signatures, Mut, Args);
+	int TLength= bam_cigar2qlen(n_cigar,cigars);
+	if (TLength<Args.MinTemplateLength) return;
+	int CurrentStart=-1, CurrentLength=0;
+	int Begin=pos;
+	int LastBegin=Begin;
+	//int MergeDis=500;
+	int MinMaxMergeDis=Args.DelMinMaxMergeDis;//min maxmergedis, if CurrentLength*MaxMergeDisPortion>MinMaxMergeDis, MaxMergeDiss=CurrentLength*MaxMergeDisPortion
+	float MaxMergeDisPortion=Args.DelMaxMergePortion;
+	double MergeScore=0;
+	vector<Segment> ShortSigs;
+	int AS=0;
+	uint8_t * ASP=bam_aux_get(br,"AS");
+	if (ASP!=NULL) AS=bam_aux2i(ASP);
 	int ClippedQLen=brGetClippedQlen(br);
 	double Quality=((double)AS)/((double)ClippedQLen);
 	set<int> IEnds;//recording i of merge ends
@@ -1007,6 +1202,7 @@ struct HandleBrArgs
 	Sam *pSamFile;
 	int Tech;
 	Stats *pSampleStats;
+	vector<AlignmentSigs> * pAlignmentsSigs;
 	vector<vector<vector<Signature>>> *pTypeSignatures;
 	SegmentSet *pAllPrimarySegments;
 	double* CoverageWindows;
@@ -1014,7 +1210,7 @@ struct HandleBrArgs
 	Arguments * pArgs;
 };
 
-void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, HandleBrMutex *mut,Arguments * pArgs)
+void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, HandleBrMutex *mut,Arguments * pArgs)
 {
 	Contig & TheContig=*pTheContig;
 	Sam & SamFile=*pSamFile;
@@ -1030,8 +1226,17 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 	}
 	// int OldDELN=TypeSignatures[0].size();
 	// int OldINSN=TypeSignatures[1].size();
-	getDelFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][0], mut, Args);
-	getInsFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][1], mut, Args);
+	// getDelFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][0], mut, Args);
+	// getInsFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][1], mut, Args);
+	AlignmentSigs TheAlignment(bam_get_qname(br));
+	getDelFromCigar(br,Tech,TheAlignment.TypeSignatures[0], Args);
+	getInsFromCigar(br,Tech,TheAlignment.TypeSignatures[1], Args);
+	if (TheAlignment.TypeSignatures[0].size()!=0 || TheAlignment.TypeSignatures[1].size()!=0)
+	{
+		pthread_mutex_lock(&mut->m_AlignmentsSigs);
+		pAlignmentsSigs->push_back(TheAlignment);
+		pthread_mutex_unlock(&mut->m_AlignmentsSigs);
+	}
 	// int NewDELN=TypeSignatures[0].size()-OldDELN;
 	// int NewINSN=TypeSignatures[1].size()-OldINSN;
 	// if (NewINSN>0 && NewDELN>0 && ((NewDELN+NewINSN)>(MAX(10,br->core.l_qseq*0.001))))
@@ -1052,13 +1257,13 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 void * handlebrWrapper(void * args)
 {
 	HandleBrArgs * A=(HandleBrArgs*)args;
-	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, A->pTypeSignatures, A->pAllPrimarySegments, A->CoverageWindows, A->mut, A->pArgs);
+	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, A->pAlignmentsSigs, A->pTypeSignatures, A->pAllPrimarySegments, A->CoverageWindows, A->mut, A->pArgs);
 	bam_destroy1(A->br);
 	delete A;
 	return NULL;
 }
 
-void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, HandleBrMutex *Mut, Arguments & Args, FILE* Pipe=stdin)
+void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & SampleStats, vector<AlignmentSigs> AlignmentsSigs, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, double * CoverageWindows, HandleBrMutex *Mut, Arguments & Args, FILE* Pipe=stdin)
 {
     bam1_t *br=bam_init1();
 	size_t linebuffersize=1024*0124;
@@ -1071,7 +1276,7 @@ void takePipeAndHandleBr(Contig &TheContig, Sam & SamFile, int Tech, Stats & Sam
 	{
 		kstring_t ks={length,linebuffersize,linebuffer};
 		sam_parse1(&ks,SamFile.Header,br);
-		handlebr(br,&TheContig,&SamFile,Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows, Mut, &Args);
+		handlebr(br,&TheContig,&SamFile,Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows, Mut, &Args);
 		StdinLock.lock();
 		length=getline(&linebuffer,&linebuffersize,Pipe);
 		StdinLock.unlock();
@@ -1205,6 +1410,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 {
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
+	vector<AlignmentSigs> AlignmentsSigs;//All CIGAR sigs for this contig is here, so we can proceed them here.
 	for (int k=0;k<BamFileNames.size();++k)
 	{
 		const char * SampleFileName=BamFileNames[k];
@@ -1237,7 +1443,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 		}
 		if (DataSource!=0)
 		{
-			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, TypeSignatures,AllPrimarySegments,CoverageWindows,&mut,Args,DSFile);
+			takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, AlignmentsSigs, TypeSignatures,AllPrimarySegments,CoverageWindows,&mut,Args,DSFile);
 		}
 		else
 		{
@@ -1247,7 +1453,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
-					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args);
+					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args);
 				}
 				bam_destroy1(br);
 			}
@@ -1259,14 +1465,119 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
 					bam1_t *cbr=bam_dup1(br);
-					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args};
+					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows,&mut, &Args};
 					hts_tpool_dispatch(p.pool,HandlebrProcess,handlebrWrapper,(void *)A);
 				}
 				bam_destroy1(br);
+				hts_tpool_process_flush(HandlebrProcess);
 				hts_tpool_process_destroy(HandlebrProcess);
 			}
 		}
 		if (DataSource!=0 && strcmp(DataSource,"-")!=0) pclose(DSFile);
+	}
+
+	if (AlignmentsSigs.size()>0)
+	{
+		fprintf(stderr,"Size:%lu",AlignmentsSigs.size());
+		unsigned long DELN=0,INSN=0;
+		for (int i=0;i<AlignmentsSigs.size();++i)
+		{
+			DELN+=AlignmentsSigs[i].TypeSignatures[0].size();
+			INSN+=AlignmentsSigs[i].TypeSignatures[1].size();
+		}
+		fprintf(stderr,", DELN:%lu, INSN:%lu\n",DELN,INSN);
+		// divideASs(AlignmentsSigs);
+		// fprintf(stderr,"After Divided Size:%lu",AlignmentsSigs.size());
+		MergingMutex mut;
+		if (Args.CigarMerge==0)
+		{
+			int *TypeSigIndexes[2];
+			TypeSigIndexes[0]=(int *)malloc(AlignmentsSigs.size()*sizeof(int));
+			TypeSigIndexes[1]=(int *)malloc(AlignmentsSigs.size()*sizeof(int));
+			for (int i=0;i<AlignmentsSigs.size();++i)
+			{
+				TypeSigIndexes[0][i]=i;
+				TypeSigIndexes[1][i]=i;
+				// assert(AlignmentsSigs[i].TypeSignatures[0].size()+AlignmentsSigs[i].TypeSignatures[1].size()>0);
+				AlignmentsSigs[i].getBeginMost();
+				AlignmentsSigs[i].getEndMost();
+			}
+			sort(TypeSigIndexes[0],TypeSigIndexes[0]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
+				return AlignmentsSigs[a].TypeBeginMost[0]<AlignmentsSigs[b].TypeBeginMost[0];
+			});
+			sort(TypeSigIndexes[1],TypeSigIndexes[1]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
+				return AlignmentsSigs[a].TypeBeginMost[1]<AlignmentsSigs[b].TypeBeginMost[1];
+			});
+			// sort(AlignmentsSigs.begin(), AlignmentsSigs.end(), [](AlignmentSigs& a, AlignmentSigs& b) {
+			// 	return a.getBeginMost() < b.getBeginMost();
+			// });
+			// int MaxEnds[AlignmentsSigs.size()];
+			// MaxEnds[0]=AlignmentsSigs[0].getEndMost();
+			// for (int i=1;i<AlignmentsSigs.size();++i)
+			// {
+			// 	MaxEnds[i]=max(MaxEnds[i-1],AlignmentsSigs[i].getEndMost());
+			// }
+			int *TypeMaxEnds[2];
+			TypeMaxEnds[0]=(int*)malloc(AlignmentsSigs.size()*sizeof(int));
+			TypeMaxEnds[1]=(int*)malloc(AlignmentsSigs.size()*sizeof(int));
+			for (int T=0;T<2;++T)
+			{
+				TypeMaxEnds[T][0]=AlignmentsSigs[TypeSigIndexes[T][0]].TypeEndMost[T];
+				for (int i=1;i<AlignmentsSigs.size();++i)
+				{
+					TypeMaxEnds[T][i]=max(TypeMaxEnds[T][i-1],AlignmentsSigs[TypeSigIndexes[T][i]].TypeEndMost[T]);
+				}
+			}
+			fprintf(stderr,"Start merging for %s...",TheContig.Name.c_str());
+			if (Args.ThreadN==1)
+			{
+				for (int i=0;i<AlignmentsSigs.size();++i)
+				{
+					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], &mut, &Args};
+					omniBHandler((void *)A);
+				}
+			}
+			else
+			{
+				hts_tpool_process *MergingSigProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+				for (int i=0;i<AlignmentsSigs.size();++i)
+				{
+					// omniBMerge(&TypeSignatures[TheContig.ID], &AlignmentsSigs[i], &AlignmentsSigs, MaxEnds, &mut);
+					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], &mut, &Args};
+					hts_tpool_dispatch(p.pool,MergingSigProcess,omniBHandler,A);
+				}
+				hts_tpool_process_flush(MergingSigProcess);
+				hts_tpool_process_destroy(MergingSigProcess);
+			}
+			free(TypeMaxEnds[0]);
+			free(TypeMaxEnds[1]);
+			free(TypeSigIndexes[0]);
+			free(TypeSigIndexes[1]);
+		}
+		else
+		{
+			if (Args.ThreadN==1)
+			{
+				for (int i=0;i<AlignmentsSigs.size();++i)
+				{
+					SimpleMergeArgs *A=new SimpleMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, &mut, &Args, Args.CigarMerge==1?false:true};
+					simpleMergeHandler((void *)A);
+				}
+			}
+			else
+			{
+				hts_tpool_process *MergingSigProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+				for (int i=0;i<AlignmentsSigs.size();++i)
+				{
+					// omniBMerge(&TypeSignatures[TheContig.ID], &AlignmentsSigs[i], &AlignmentsSigs, MaxEnds, &mut);
+					SimpleMergeArgs *A=new SimpleMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, &mut, &Args, Args.CigarMerge==1?false:true};
+					hts_tpool_dispatch(p.pool,MergingSigProcess,simpleMergeHandler,A);
+				}
+				hts_tpool_process_flush(MergingSigProcess);
+				hts_tpool_process_destroy(MergingSigProcess);
+			}
+		}
+		fprintf(stderr,"Done merging for %s...",TheContig.Name.c_str());
 	}
 }
 

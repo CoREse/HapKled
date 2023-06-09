@@ -8,7 +8,36 @@
 using namespace std;
 
 OptEntry::OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi)//data should be allocated pointer with correct data type
-    :ShortOpt(short_opt),LongOpt(long_opt),NeedArg(need_arg),ArgName(arg_name),HelpDescription(help_description),DataType(data_type),Data(data),DefaultData(Data), Multi(multi){}
+    :ShortOpt(short_opt),LongOpt(long_opt),NeedArg(need_arg),ArgName(arg_name),HelpDescription(help_description),DataType(data_type),Data(data),DefaultData(Data), Multi(multi){
+        DefaultValue="";
+        if (data==NULL) return;
+        if (data_type=='s')
+        {
+            if ((*(const char **)data)==NULL) return;
+            DefaultValue+="\"";
+            DefaultValue+=(*(const char **)data);
+            DefaultValue+="\"";
+        }
+        else if (data_type=='S')
+        {
+            DefaultValue+="\"";
+            DefaultValue+=(*(string*)data);
+            DefaultValue+="\"";
+        }
+        else if (data_type=='i')
+        {
+            DefaultValue=to_string(*(int *)data);
+        }
+        else if (data_type=='F')
+        {
+            DefaultValue=to_string(*(double *)data);
+        }
+        else if (data_type=='b')
+        {
+            if (*((bool *)data)==true) DefaultValue="true";
+            else DefaultValue="false";
+        }
+    }
 
 void OptHelper::addOpt(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi)//data should be allocated pointer with correct data type
 {
@@ -317,6 +346,7 @@ void OptHelper::showhelp(FILE* file)
         j = 32;
         if (Opts[i].HelpDescription != NULL)
             fprintf(file, Opts[i].HelpDescription);
+            if (Opts[i].DefaultValue!="") fprintf(file, " (%s).",Opts[i].DefaultValue.c_str());
         fprintf(file, "\n");
     }
 }

@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <vector>
+#include <string>
 
 struct OptEntry
 {
@@ -11,10 +12,11 @@ struct OptEntry
     int NeedArg;
     const char * ArgName;
     const char * HelpDescription;
-    char DataType;//'i' for int, 'F' for double, 's' for string, 'b' for bool;
+    char DataType;//'i' for int, 'F' for double, 's' for c string, 'S' for string, 'b' for bool;
     void * Data;
     void * DefaultData;//if NULL then don't init the Data;
     bool Multi;
+    std::string DefaultValue;
     OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi=false);//data should be allocated pointer with correct data type
 };
 

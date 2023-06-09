@@ -47,55 +47,65 @@ struct Arguments {
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	int ClusteringMaxMergeRange=20000;
 	int ClusteringBatchSize=10000;
-    float BrotherhoodTypeRatios[NumberOfSVTypes]={0.5,1.0,0.1,0.5};//For SV Types
-    int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={10,50,500,100};
-    float BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={10,0,500,100};
+    double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.6,0.5};//For SV Types
+    int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={50,150,200,100};
+    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0.5};//For SV Types
+    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={60,50,800,100};
     int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
-    float BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    float BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,2.0,2.0};//For SV Types
+    double BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
+    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.0,1.0,0.6,0.5};//For SV Types
+       int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={100,0,200,100};
+    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.1,0.2,0.3,0.5};//For SV Types
+       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={0,0,800,100};
+       int BrotherhoodCLRNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
+       int BrotherhoodCLRTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
+    double BrotherhoodCLRTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
+    double BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,2.0,2.0};//For SV Types
     int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,100,100};
-    float BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.5};//For SV Types
+    double BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.5};//For SV Types
     int BrotherhoodCCSTypeLengthMinEndurance[NumberOfSVTypes]={10,50,500,100};
+       int BrotherhoodCCSNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
+       int BrotherhoodCCSTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
+    double BrotherhoodCCSTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
 	bool AllCLR=false;
 	bool AllCCS=false;
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{1,1}//DEL
-	,{3,4}//INS
+	{{1,0}//DEL
+	,{1,0}//INS
 	,{0,2}//DUP
 	,{0,2}};//INV, only ST no SS
-	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.2,0.1},
-	{0,0},
+	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.28,0.16},
+	{0.19,0.14},
 	{0.4,0.4},
 	{0.2,0.3}};
-	double LSDRSs[NumberOfSVTypes][2]={{0, 50},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{40,0},
+	double LSDRSs[NumberOfSVTypes][2]={{70, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{60,90},
 	{95,90},
 	{94,70}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{1.5,0.5}//DEL
-	,{2,2}//INS
+	{{0,2}//DEL
+	,{2,0}//INS
 	,{0,2}//DUP
 	,{1,1}};//INV, only ST no SS
-	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.1,0.1},
-	{0.18,0.08},
+	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.4,0.09},
+	{0.09,0.39},
 	{0.4,0.4},
 	{0.5,0.5}};
-	double CLRLSDRSs[NumberOfSVTypes][2]={{30, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{55,85},
+	double CLRLSDRSs[NumberOfSVTypes][2]={{55, 75},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{60,90},
 	{95,90},
 	{55,90}};
-	double CCSASSBases[NumberOfSVTypes][2]={{10,3},
-	{5,1},
+	double CCSASSBases[NumberOfSVTypes][2]={{0,0},
+	{0,0},
 	{10,3},//Need further polish
 	{1,1}};//Need further polish
-	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.5,0.1},
-	{0.3,0.2},
+	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.31,0.1},
+	{0.33,0.13},
 	{0.5,0.1},
 	{0.5,0.5}};
-	double CCSLSDRSs[NumberOfSVTypes][2]={{0, 80},
-	{55,80},
+	double CCSLSDRSs[NumberOfSVTypes][2]={{55, 95},
+	{55,95},
 	{0,80},
 	{55,90}};
     double PreciseStandard=3;
@@ -110,6 +120,13 @@ struct Arguments {
 	bool WeightPosLength=false;
 	bool WeightFilter=false;
 	bool IndependantMerge=false;
+
+	bool CigarMerge=0;//0: Omni.B, 1:Simple, 2:Simple Regional
+	int OmniA[2]={800,200};
+	int OmniB[2]={800,200};
+	int OmniBMaxEdges=8;
+	int OmniBCountLimit=20;
+	double OmniBScoreBRatio=0.1;
 };
 
 #endif

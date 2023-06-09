@@ -5,16 +5,16 @@
 using namespace std;
 
 Signature::Signature()
-:Type(0), Tech(0), SupportedSV(0), Begin(0), End(0), CN(-1), TemplateName(""), Quality(0), Length(0), InsBases(""), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString(""))
+:Type(0), Tech(0), SupportedSV(0), Segment(), CN(-1), TemplateName(""), Quality(0), Length(0), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString(""))
 {}
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, const char * InsBases)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Length(End-Begin), InsBases(InsBases), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")){}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End,InsBases}), CN(-1), TemplateName(TemplateName), Quality(Quality), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")){}
 
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, Segment Read1, Segment Read2, int ALength)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(), Length(ALength), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {Segments.push_back(Read1), Segments.push_back(Read2);}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(), Length(ALength), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {Segments.push_back(Read1), Segments.push_back(Read2);}
 
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, vector<Segment> Segments)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Begin(Begin), End(End), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(Segments), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(Segments), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {}
 
 const char* Signature::SVTypeNames[]={"DEL","INS","DUP","INV"};
 
@@ -58,8 +58,8 @@ bool Signature::operator==(const Signature &Other) const
     return Tech==Other.Tech && SupportedSV==Other.SupportedSV && TemplateName==Other.TemplateName && Begin==Other.Begin && End==Other.End && Segments==Other.Segments;
 }
 
-Segment::Segment(int Begin,int End)
-:Begin(Begin),End(End){}
+Segment::Segment(int Begin,int End, const char * CInsBases)
+:Begin(Begin),End(End),InsBases(CInsBases){}
 
 bool Segment::operator==(const Segment & Other) const
 {

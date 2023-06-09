@@ -1,13 +1,15 @@
 CC=g++
 AR=ar
 #CPPFLAGS= -Wall -g -Lhtslib -lhts -Lcrelib -lcre optutils/opthelper.a --std=c++17
-CPPFLAGS= --std=c++17 -g -fopenmp
+CPPFLAGS= --std=c++17 -O3 -fopenmp
 LDFLAGS= -fopenmp -lboost_iostreams -lboost_serialization
+# CPPFLAGS= --std=c++17 -g -fopenmp -pg
+# LDFLAGS= -fopenmp -lboost_iostreams -lboost_serialization -pg
 HTSLIBDIR=htslib
 SUBMODULES=crelib $(HTSLIBDIR) optutils
 
-PROJECT_OBJS=kled.o input.o signature.o contig.o StatsManager.o StatsTracker.o clustering.o report.o
-PROJECT_HEADERS=kled.h input.h signature.h contig.h clustering.h report.h
+PROJECT_OBJS=kled.o input.o signature.o contig.o StatsManager.o StatsTracker.o clustering.o report.o merge.o
+PROJECT_HEADERS=kled.h input.h signature.h contig.h clustering.h report.h merge.h
 EXAMPLE_OBJS=
 HTSLIB=$(HTSLIBDIR)/libhts.a
 LAUNCHER=./launcher
@@ -33,8 +35,8 @@ htsconf:
 $(PROJECT_OBJS): $(PROJECT_HEADERS)
 
 HTSLIB_LIBS = -lz -lm -lbz2 -llzma -lcurl -lpthread -lcrypto -ldeflate
-kled: $(PROJECT_OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS) $(HTSPREFIX)/libhts.a $(HTSLIB_LIBS) -Lcrelib -lcre optutils/opthelper.a --std=c++17
+kled: $(PROJECT_OBJS) $(HTSPREFIX)/libhts.a optutils/opthelper.a
+	$(CC) $(PROJECT_OBJS) -o $@  $(LDFLAGS) $(HTSPREFIX)/libhts.a $(HTSLIB_LIBS) -Lcrelib -lcre optutils/opthelper.a --std=c++17
 
 clean:
 	rm *.o kled

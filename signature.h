@@ -18,7 +18,8 @@
 struct Segment
 {
     int Begin, End;
-    Segment(int Begin=0,int End=0);
+    std::string InsBases;
+    Segment(int Begin=0,int End=0, const char * CInsBases="");
     bool operator==(const Segment &) const;
     bool operator<(const Segment &) const;
     #ifdef DEBUG
@@ -31,7 +32,7 @@ struct Segment
     #endif
 };
 
-class Signature
+class Signature : public Segment
 {
     public:
     int Type;//0: base class, for cigar based signatures, 1: DRPSignatures, 2: ClipSignatures, -1: mark of deleted signature object.
@@ -39,9 +40,9 @@ class Signature
     int SupportedSV;//0: DEL, 1: INS, 2: DUP
     static const char* SVTypeNames[];
     std::string TemplateName;
-    std::string InsBases;
+    // std::string InsBases;
     //unsigned long long ReadNum;//indicate the signature is from ReadNum-th read this software reads in this contig, count by primary alignment.
-    int Begin, End;//0-based, for insertions, end is just for SVLen calculation and clustering convinience.
+    // int Begin, End;//0-based, for insertions, end is just for SVLen calculation and clustering convinience.
     int CN;//default -1, 0 for del, >1 for dup if known
     std::vector<Segment> Segments;
     int Length;
