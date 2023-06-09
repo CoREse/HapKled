@@ -4,11 +4,12 @@
 
 struct AlignmentSigs
 {
+	unsigned long long AlignmentID;
 	std::string TemplateName;
 	std::vector<std::vector<Signature>> TypeSignatures;
 	int BeginMost, EndMost;
 	std::vector<int> TypeBeginMost, TypeEndMost;
-	AlignmentSigs(const char *TempName="");
+	AlignmentSigs(unsigned long long AlignmentID, const char *TempName="");
 	int getBeginMost();
 	int getEndMost();
 };
@@ -28,8 +29,8 @@ struct OmniBMergeArgs
 	std::vector<std::vector<Signature>> * pTypeSignatures;
 	int Index;
 	std::vector<AlignmentSigs> * pAlignmentsSigs;
-	const int * TypeSigIndexes;
-	const int * TypeMaxEnds;
+	const int ** TypeSigIndexes;
+	const int ** TypeMaxEnds;
 	MergingMutex *mut;
     Arguments *pArgs;
 };

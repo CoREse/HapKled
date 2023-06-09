@@ -1228,7 +1228,27 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 	// int OldINSN=TypeSignatures[1].size();
 	// getDelFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][0], mut, Args);
 	// getInsFromCigar(br,Tech,(*pTypeSignatures)[pTheContig->ID][1], mut, Args);
-	AlignmentSigs TheAlignment(bam_get_qname(br));
+	unsigned long long BrHash=0;
+	BrHash=br->core.tid;
+	BrHash<<=24;
+	BrHash+=br->core.pos;
+	BrHash<<=16;
+	BrHash+=br->core.flag;
+	BrHash<<=16;
+	BrHash+=br->core.n_cigar&0xffff;
+	// BrHash+=br->core.pos;
+    // BrHash+=br->core.tid;
+    // BrHash+=br->core.bin;
+    // BrHash+=br->core.qual;
+    // BrHash+=br->core.l_extranul;
+    // BrHash+=br->core.flag;
+    // BrHash+=br->core.l_qname;
+    // BrHash+=br->core.n_cigar;
+    // BrHash+=br->core.l_qseq;
+    // BrHash+=br->core.mtid;
+    // BrHash+=br->core.mpos;
+    // BrHash+=br->core.isize;
+	AlignmentSigs TheAlignment(BrHash, bam_get_qname(br));
 	getDelFromCigar(br,Tech,TheAlignment.TypeSignatures[0], Args);
 	getInsFromCigar(br,Tech,TheAlignment.TypeSignatures[1], Args);
 	if (TheAlignment.TypeSignatures[0].size()!=0 || TheAlignment.TypeSignatures[1].size()!=0)
@@ -1502,10 +1522,19 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				AlignmentsSigs[i].getBeginMost();
 				AlignmentsSigs[i].getEndMost();
 			}
+			// sort(AlignmentsSigs.begin(),AlignmentsSigs.end(),[](AlignmentSigs& a, AlignmentSigs& b) {
+			// 	return a.AlignmentID<b.AlignmentID;
+			// });
+			// for (int i=0;i<AlignmentsSigs.size();++i)
+			// {
+			// 	printf("ID:%llu, Temp:%s, Size:%lu,%lu\n",AlignmentsSigs[i].AlignmentID,AlignmentsSigs[i].TemplateName.c_str(),AlignmentsSigs[i].TypeSignatures[0].size(),AlignmentsSigs[i].TypeSignatures[1].size());
+			// }
 			sort(TypeSigIndexes[0],TypeSigIndexes[0]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
+				if (AlignmentsSigs[a].TypeBeginMost[0]==AlignmentsSigs[b].TypeBeginMost[0]) return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
 				return AlignmentsSigs[a].TypeBeginMost[0]<AlignmentsSigs[b].TypeBeginMost[0];
 			});
 			sort(TypeSigIndexes[1],TypeSigIndexes[1]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
+				if (AlignmentsSigs[a].TypeBeginMost[1]==AlignmentsSigs[b].TypeBeginMost[1]) return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
 				return AlignmentsSigs[a].TypeBeginMost[1]<AlignmentsSigs[b].TypeBeginMost[1];
 			});
 			// sort(AlignmentsSigs.begin(), AlignmentsSigs.end(), [](AlignmentSigs& a, AlignmentSigs& b) {
@@ -1533,7 +1562,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 			{
 				for (int i=0;i<AlignmentsSigs.size();++i)
 				{
-					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], &mut, &Args};
+					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, (const int **)TypeSigIndexes, (const int **)TypeMaxEnds, &mut, &Args};
 					omniBHandler((void *)A);
 				}
 			}
@@ -1543,7 +1572,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				for (int i=0;i<AlignmentsSigs.size();++i)
 				{
 					// omniBMerge(&TypeSignatures[TheContig.ID], &AlignmentsSigs[i], &AlignmentsSigs, MaxEnds, &mut);
-					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], &mut, &Args};
+					OmniBMergeArgs *A=new OmniBMergeArgs{&TypeSignatures[TheContig.ID], i, &AlignmentsSigs, (const int **)TypeSigIndexes, (const int **)TypeMaxEnds, &mut, &Args};
 					hts_tpool_dispatch(p.pool,MergingSigProcess,omniBHandler,A);
 				}
 				hts_tpool_process_flush(MergingSigProcess);
@@ -1579,6 +1608,8 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 		}
 		fprintf(stderr,"Done merging for %s...",TheContig.Name.c_str());
 	}
+	// fprintf(stderr,"DEL:%lu, INS:%lu, DUP:%lu, INV:%lu\n",TypeSignatures[TheContig.ID][0].size(),TypeSignatures[TheContig.ID][1].size(),TypeSignatures[TheContig.ID][2].size(),TypeSignatures[TheContig.ID][3].size());
+	// exit(0);
 }
 
 Contig * getContigs(Arguments & Args, int& NSeq, int RDWindowSize)

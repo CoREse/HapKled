@@ -354,13 +354,13 @@ void omniBMergeType(int Type, vector<Signature> &Signatures, int Index, vector<A
 	pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
 }
 
-void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int *TypeSigIndexes, const int *TypeMaxEnds , MergingMutex *mut, Arguments *pArgs)
+void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int **TypeSigIndexes, const int **TypeMaxEnds, MergingMutex *mut, Arguments *pArgs)
 {
 	// int RelevantBeginI, RelevantEndI;
 	// getRelevants(pAlignmentSigs, pAlignmentsSigs,RelevantBeginI,RelevantEndI, MaxEnds);
     if (Index % 10000==0) fprintf(stderr,"Merged %d\n",Index);
-	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes, TypeMaxEnds, mut, pArgs);
-	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes, TypeMaxEnds, mut, pArgs);
+	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], mut, pArgs);
+	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], mut, pArgs);
 	// omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes+pAlignmentsSigs->size(), TypeMaxEnds+pAlignmentsSigs->size(), mut);
 }
 
@@ -374,7 +374,7 @@ void *omniBHandler(void * Args)
 	return NULL;
 }
 
-AlignmentSigs::AlignmentSigs(const char *TempName):TemplateName(TempName),TypeSignatures({std::vector<Signature>(),std::vector<Signature>()}),BeginMost(-1),EndMost(-1),TypeBeginMost({-1,-1}),TypeEndMost({-1,-1})
+AlignmentSigs::AlignmentSigs(unsigned long long ID, const char *TempName):AlignmentID(ID),TemplateName(TempName),TypeSignatures({std::vector<Signature>(),std::vector<Signature>()}),BeginMost(-1),EndMost(-1),TypeBeginMost({-1,-1}),TypeEndMost({-1,-1})
 {
 }
 
@@ -425,7 +425,7 @@ void divideASs(vector<AlignmentSigs> &ASs)
             {
                 if (ASs[i].TypeSignatures[t][j].End+1000<ASs[i].TypeSignatures[t][j+1].Begin)
                 {
-                    ASs.push_back(AlignmentSigs());
+                    ASs.push_back(AlignmentSigs(ASs[i].AlignmentID));
 			        ASs[ASs.size()-1].TypeSignatures[t].insert(ASs[ASs.size()-1].TypeSignatures[t].end(),make_move_iterator(ASs[i].TypeSignatures[t].begin()),make_move_iterator(ASs[i].TypeSignatures[t].begin()+j+1));
                 }
             }

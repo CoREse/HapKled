@@ -371,7 +371,7 @@ int main(int argc, const char* argv[])
 		ContigOutputs.push_back(vector<VCFRecord>());
 		ContigWholeCoverage.push_back(0.0);
 	}
-	#pragma omp parallel for
+	// #pragma omp parallel for
 	for (int i=0;i<NSeq;++i)
 	{
 		if (! toCall(Contigs[i],Args))
