@@ -372,7 +372,7 @@ bool statCluster(vector<Signature> &SignatureCluster, int & SS, int &ST, int& SS
 {
     SS=0;
     SS2=0;
-    set<string> SupportTemps,SupportTemps2;
+    set<string> SupportTemps,SupportTemps2;//,SupportTempsCigar;
     for (int i =0;i<SignatureCluster.size();++i)
     {
         ++SS;
@@ -382,9 +382,14 @@ bool statCluster(vector<Signature> &SignatureCluster, int & SS, int &ST, int& SS
             ++SS2;
             SupportTemps2.insert(SignatureCluster[i].TemplateName);
         }
+        // if (SignatureCluster[i].Type==0)
+        // {
+        //     SupportTempsCigar.insert(SignatureCluster[i].TemplateName);
+        // }
     }
     ST=SupportTemps.size();
     ST2=SupportTemps2.size();
+    // if (SupportTempsCigar.size()<1) return false;
     return true;
     // if (ST>=1) return true;
     // return false;
@@ -701,6 +706,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     statCluster(SignatureCluster,SS,ST,SS2,ST2);
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
+    // if (SVTypeI==0 or SVTypeI==1) if (!cflag) {Keep=false;return;}
     calcM3L(SignatureCluster);
     tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType, Args);
     int MeanSVLen=get<2>(Site);
@@ -812,7 +818,7 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
     genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-   
+    // if (Score<(double)(CV)*0.1) {Keep=false;return;}
     ID=".";
     QUAL=".";
     FILTER="PASS";

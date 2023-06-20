@@ -19,7 +19,7 @@
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.1";
+	const char * Version="1.1.1";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	std::string CommandLine;
@@ -47,11 +47,11 @@ struct Arguments {
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	int ClusteringMaxMergeRange=20000;
 	int ClusteringBatchSize=10000;
-    double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.6,0.5};//For SV Types
+    double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.7,0.1};//For SV Types
     int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={50,150,200,100};
-    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0.5};//For SV Types
-    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={60,50,800,100};
-    int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
+    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0};//For SV Types
+    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={60,50,100,0};
+    int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
     double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.0,1.0,0.6,0.5};//For SV Types
@@ -73,41 +73,41 @@ struct Arguments {
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{1,0}//DEL
 	,{1,0}//INS
-	,{0,2}//DUP
-	,{0,2}};//INV, only ST no SS
+	,{4,0}//DUP
+	,{2,1}};//INV
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.28,0.16},
 	{0.19,0.14},
-	{0.4,0.4},
-	{0.2,0.3}};
+	{0.13,0.29},
+	{0,0.18}};
 	double LSDRSs[NumberOfSVTypes][2]={{70, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{60,90},
-	{95,90},
-	{94,70}};
+	{85,95},
+	{100,0}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{0,2}//DEL
 	,{2,0}//INS
-	,{0,2}//DUP
-	,{1,1}};//INV, only ST no SS
+	,{4,0}//DUP
+	,{0,2}};//INV
 	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.4,0.09},
 	{0.09,0.39},
-	{0.4,0.4},
-	{0.5,0.5}};
+	{0.13,0.29},
+	{0,0.09}};
 	double CLRLSDRSs[NumberOfSVTypes][2]={{55, 75},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{60,90},
-	{95,90},
-	{55,90}};
+	{85,95},
+	{100,100}};
 	double CCSASSBases[NumberOfSVTypes][2]={{0,0},
 	{0,0},
-	{10,3},//Need further polish
-	{1,1}};//Need further polish
+	{4,0},//Need further polish
+	{4,0}};//Need further polish
 	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.31,0.1},
 	{0.33,0.13},
-	{0.5,0.1},
-	{0.5,0.5}};
+	{0.13,0.29},
+	{0,0.09}};
 	double CCSLSDRSs[NumberOfSVTypes][2]={{55, 95},
 	{55,95},
-	{0,80},
-	{55,90}};
+	{85,95},
+	{100,100}};
     double PreciseStandard=3;
     int MinimumPreciseTemplates=5;
 
