@@ -349,11 +349,145 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
+bool conformDup(int S1, int E1, int S2, int E2, double Threshold=0.3)//from svim
+{
+	// return false;
+	int L1=E1-S1, L2=E2-S2;
+	double LengthRatio=double(abs(L1-L2))/(double(max(L1,L2)));
+	double PositionRatio=abs(double(E1+S1)/2.0-double(E2+S2)/2.0)/900.0;
+	if (LengthRatio + PositionRatio<Threshold) return true;
+	// if (LengthRatio<Threshold && PositionRatio<Threshold) return true;
+	return false;
+}
+
 void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, HandleBrMutex *Mut, Arguments & Args)
 {
+	// #define OLD
+	#ifndef OLD
+	int CurrentStart=-1, CurrentEnd=-1, CurrentN=0, CurrentCid=-1, CurrentStrand=-1;
+	double CurrentQuality=0;
+	bool Covered=false;
 	for (int i=0;i<Aligns.size()-1;++i)
 	{
-		for (int j=0;j<Aligns.size();++j)
+		for (int j=i+1;j<Aligns.size();++j)
+		{
+			if (j>i+1) break;
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
+			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
+			// vector<Segment> v;
+			int FormerI=i, LatterI=j;
+			if (Aligns[i].Strand==0)
+			{
+				FormerI=j;
+				LatterI=i;
+			}
+			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
+			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
+			{
+				int DupEnd=Aligns[FormerI].End+InnerGap;
+				int DupLength=DupEnd-Aligns[LatterI].Pos;
+				if (DupLength>=Args.MinSVLen)// && DupLength<100000)
+				{
+					if (CurrentStart==-1)
+					{
+						CurrentStart=Aligns[LatterI].Pos;
+						CurrentEnd=DupEnd;
+						CurrentN=1;
+						Covered=false;
+						CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+						if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+						CurrentCid=Aligns[FormerI].Cid;
+						CurrentStrand=Aligns[FormerI].Strand;
+					}
+					else
+					{
+						if (CurrentCid==Aligns[FormerI].Cid && CurrentStrand==Aligns[FormerI].Strand && conformDup(CurrentStart,CurrentEnd, Aligns[LatterI].Pos, DupEnd))
+						{
+							CurrentStart=((double)CurrentStart)*(double(CurrentN)/(double(CurrentN+1)))+((double)Aligns[LatterI].Pos)*(1.0/(double(CurrentN+1)));
+							CurrentEnd=((double)CurrentEnd)*(double(CurrentN)/(double(CurrentN+1)))+((double)DupEnd)*(1.0/(double(CurrentN+1)));
+							CurrentQuality=((double)CurrentQuality)*(double(CurrentN)/(double(CurrentN+1)))+0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality())*(1.0/(double(CurrentN+1)));
+							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+							++CurrentN;
+						}
+						else
+						{
+							if (CurrentEnd-CurrentStart>Args.MinSVLen)
+							{
+								Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
+								TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+								TempSignature.Covered=Covered;
+								pthread_mutex_lock(&Mut->m_Sig[2]);
+								TypeSignatures[CurrentCid][2].push_back(TempSignature);
+								pthread_mutex_unlock(&Mut->m_Sig[2]);
+							}
+							CurrentStart=Aligns[LatterI].Pos;
+							CurrentEnd=DupEnd;
+							CurrentN=1;
+							Covered=false;
+							CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+							CurrentCid=Aligns[FormerI].Cid;
+							CurrentStrand=Aligns[FormerI].Strand;
+						}
+					}
+				}
+				break;
+				// //   |=========>|
+				// //|===>
+				// if (DupLength>Aligns[LatterI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /============>
+				// else if (DupLength>Aligns[FormerI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /=====>
+				// else
+				// {
+				// 	if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
+				// 	{
+				// 		Dup=1;
+				// 	}
+				// }
+				// if (Dup)
+				// {
+				// 	double Quality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+				// 	// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
+				// 	// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
+				// 	Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End+InnerGap,bam_get_qname(br),Quality);
+				// 	pthread_mutex_lock(&Mut->m_Sig[2]);
+				// 	TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
+				// 	pthread_mutex_unlock(&Mut->m_Sig[2]);
+				// }
+			}
+			// break;
+			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
+		}
+		// break;
+	}
+	if (CurrentStart!=-1)
+	{
+		if (CurrentEnd-CurrentStart>=Args.MinSVLen)
+		{
+			Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
+			TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+			TempSignature.Covered=Covered;
+			pthread_mutex_lock(&Mut->m_Sig[2]);
+			TypeSignatures[CurrentCid][2].push_back(TempSignature);
+			pthread_mutex_unlock(&Mut->m_Sig[2]);
+		}
+	}
+	#endif
+	#ifdef OLD
+	//Break at first sig.
+	for (int i=0;i<Aligns.size()-1;++i)
+	{
+		for (int j=i+1;j<Aligns.size();++j)
 		{
 			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
 			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
@@ -407,6 +541,7 @@ void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 		}
 		break;
 	}
+	#endif
 }
 
 bool continuous(const Alignment& Former, const Alignment& Latter, unsigned Endurance)

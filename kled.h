@@ -19,7 +19,7 @@
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.1.1";
+	const char * Version="1.1.2";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	std::string CommandLine;
@@ -49,7 +49,7 @@ struct Arguments {
 	int ClusteringBatchSize=10000;
     double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.7,0.1};//For SV Types
     int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={50,150,200,100};
-    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0};//For SV Types
+    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0.1};//For SV Types
     int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={60,50,100,0};
     int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
@@ -77,12 +77,12 @@ struct Arguments {
 	,{2,1}};//INV
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.28,0.16},
 	{0.19,0.14},
-	{0.13,0.29},
+	{0.13,0.1},
 	{0,0.18}};
 	double LSDRSs[NumberOfSVTypes][2]={{70, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{60,90},
-	{85,95},
-	{100,0}};
+	{85,99},
+	{98,0}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{0,2}//DEL
 	,{2,0}//INS

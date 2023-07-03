@@ -743,6 +743,12 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
         if (HasLeft) INFO+="L";
         if (HasRight) INFO+="R";
     }
+    // bool Covered=false;
+    // if (SVType=="DUP")
+    // {
+    //     for (int i=0;i<SignatureCluster.size();++i) if (SignatureCluster[i].Covered) {Covered=true;break;}
+    // }
+    // if (SVType=="DUP" && !Covered) {Keep=false;return;}
     double Score=ST;
     if (Args.WeightFilter)
     {

@@ -279,6 +279,7 @@ int main(int argc, const char* argv[])
 	omp_set_num_threads(Args.ThreadN);
 	// ThreadPool ThePool(8);
 
+	fprintf(stderr,"Running kled v%s\n",Args.Version);
 	updateTime("Starting kled, reading reference...");
 	int NSeq;
 	Contig * Contigs=getContigs(Args,NSeq);//,RDWindowSize);

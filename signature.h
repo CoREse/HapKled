@@ -44,6 +44,7 @@ class Signature : public Segment
     //unsigned long long ReadNum;//indicate the signature is from ReadNum-th read this software reads in this contig, count by primary alignment.
     // int Begin, End;//0-based, for insertions, end is just for SVLen calculation and clustering convinience.
     int CN;//default -1, 0 for del, >1 for dup if known
+    bool Covered;//Dup if covered.
     std::vector<Segment> Segments;
     int Length;
     bool InvLeft, InvRight;
