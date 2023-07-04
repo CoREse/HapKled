@@ -339,7 +339,7 @@ void getRelevants(int Type, AlignmentSigs *pAlignmentSigs, vector<AlignmentSigs>
 	RelevantEndI=searchEnd(pAlignmentSigs->BeginMost,Type,*pAlignmentsSigs, SigIndexes);
 }
 
-void omniBMergeType(int Type, vector<Signature> &Signatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int *SigIndexes, const int *MaxEnds, MergingMutex * mut, Arguments *pArgs)
+void omniBMergeType(int Type, vector<Signature> &Signatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int *SigIndexes, const int *MaxEnds, Arguments *pArgs)
 {
 	if (pAlignmentsSigs->at(Index).TypeSignatures[Type].size()==0) return;
 	int RelevantBeginIndexI, RelevantEndIndexI;
@@ -349,18 +349,18 @@ void omniBMergeType(int Type, vector<Signature> &Signatures, int Index, vector<A
 	vector<Segment> BestSegs;
 	int BestBestScore=INT_MIN;
 	forAllCandidateLinks(Type, Index, pAlignmentsSigs, SigIndexes, RelevantBeginIndexI, RelevantEndIndexI,BestSegs,BestBestScore, Edges, *pArgs, pArgs->OmniBMaxEdges);
-	pthread_mutex_lock(&mut->m_AddingSigs[Type]);
+	// pthread_mutex_lock(&mut->m_AddingSigs[Type]);
 	getSigsFromSegs(Type,BestSegs,Signatures,(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].Tech,(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].TemplateName.c_str(),(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].Quality);
-	pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
+	// pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
 }
 
-void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int **TypeSigIndexes, const int **TypeMaxEnds, MergingMutex *mut, Arguments *pArgs)
+void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int **TypeSigIndexes, const int **TypeMaxEnds, Arguments *pArgs)
 {
 	// int RelevantBeginI, RelevantEndI;
 	// getRelevants(pAlignmentSigs, pAlignmentsSigs,RelevantBeginI,RelevantEndI, MaxEnds);
     if (Index % 10000==0) fprintf(stderr,"Merged %d\n",Index);
-	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], mut, pArgs);
-	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], mut, pArgs);
+	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
+	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
 	// omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes+pAlignmentsSigs->size(), TypeMaxEnds+pAlignmentsSigs->size(), mut);
 }
 
@@ -369,7 +369,7 @@ void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<A
 void *omniBHandler(void * Args)
 {
 	OmniBMergeArgs * A=(OmniBMergeArgs*)Args;
-	omniBMerge(A->pTypeSignatures,A->Index,A->pAlignmentsSigs,A->TypeSigIndexes,A->TypeMaxEnds,A->mut, A->pArgs);
+	omniBMerge(&(A->pTypeSignatures->at(pthread_self())),A->Index,A->pAlignmentsSigs,A->TypeSigIndexes,A->TypeMaxEnds,A->pArgs);
 	delete A;
 	return NULL;
 }
@@ -435,7 +435,7 @@ void divideASs(vector<AlignmentSigs> &ASs)
 
 ///=====Omni Merge Ends======
 
-void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & AlignmentSigs, MergingMutex *mut, Arguments & Args, bool Regional=false)
+void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & AlignmentSigs, Arguments & Args, bool Regional=false)
 {
     int CurrentBegin=-1, CurrentLength=0;
     double MaxMergeDisPortion=Args.DelMaxMergePortion;
@@ -464,9 +464,9 @@ void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & Al
             if(CurrentLength>=Args.MinSVLen)
             {
                 Signature Temp(0,AlignmentSigs.TypeSignatures[Type][0].Tech,Type,CurrentBegin,CurrentBegin+CurrentLength,AlignmentSigs.TemplateName.c_str(),AlignmentSigs.TypeSignatures[Type][0].Quality,InsBases.c_str());
-				pthread_mutex_lock(&mut->m_AddingSigs[Type]);
+				// pthread_mutex_lock(&mut->m_AddingSigs[Type]);
                 Signatures.push_back(Temp);
-                pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
+                // pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
             }
             CurrentBegin=Begin;
 			CurrentLength=ThisLength;
@@ -483,28 +483,28 @@ void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & Al
 		if(CurrentLength>=Args.MinSVLen)
 		{
                 Signature Temp(0,AlignmentSigs.TypeSignatures[Type][0].Tech,Type,CurrentBegin,CurrentBegin+CurrentLength,AlignmentSigs.TemplateName.c_str(),AlignmentSigs.TypeSignatures[Type][0].Quality,InsBases.c_str());
-                pthread_mutex_lock(&mut->m_AddingSigs[Type]);
+                // pthread_mutex_lock(&mut->m_AddingSigs[Type]);
                 Signatures.push_back(Temp);
-                pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
+                // pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
 		}
 	}
 }
 
-void simpleMergeType(int Type, vector<Signature> &Signatures, AlignmentSigs & AlignmentSigs, MergingMutex *mut, Arguments & Args, bool Regional)
+void simpleMergeType(int Type, vector<Signature> &Signatures, AlignmentSigs & AlignmentSigs, Arguments & Args, bool Regional)
 {
-    simpleMergeSigs(Type, Signatures,AlignmentSigs,mut,Args,Regional);
+    simpleMergeSigs(Type, Signatures,AlignmentSigs,Args,Regional);
 }
 
-void simpleMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, MergingMutex *mut, Arguments *pArgs, bool Regional)
+void simpleMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, Arguments *pArgs, bool Regional)
 {
-	simpleMergeType(0,pTypeSignatures->at(0),(*pAlignmentsSigs)[Index],mut,*pArgs, Regional);
-	simpleMergeType(1,pTypeSignatures->at(1),(*pAlignmentsSigs)[Index],mut,*pArgs, Regional);
+	simpleMergeType(0,pTypeSignatures->at(0),(*pAlignmentsSigs)[Index],*pArgs, Regional);
+	simpleMergeType(1,pTypeSignatures->at(1),(*pAlignmentsSigs)[Index],*pArgs, Regional);
 }
 
 void *simpleMergeHandler(void * Args)
 {
 	SimpleMergeArgs * A=(SimpleMergeArgs*)Args;
-	simpleMerge(A->pTypeSignatures,A->Index,A->pAlignmentsSigs,A->mut,A->pArgs,A->Regional);
+	simpleMerge(&(A->pTypeSignatures->at(pthread_self())),A->Index,A->pAlignmentsSigs,A->pArgs,A->Regional);
 	delete A;
 	return NULL;
 }

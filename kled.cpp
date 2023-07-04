@@ -352,7 +352,7 @@ int main(int argc, const char* argv[])
 			{
 			#endif
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
-			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,NumberOfCoverageWindows,0);
 			AllPrimarySegments.sortNStat();
 			#ifdef DEBUG
 			}

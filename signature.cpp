@@ -113,6 +113,10 @@ void SegmentSet::add(int Begin, int End)
 {
     Segments.push_back(Segment(Begin,End));
 }
+void SegmentSet::merge(SegmentSet& Other)
+{
+    Segments.insert(Segments.end(),make_move_iterator(Other.Segments.begin()),make_move_iterator(Other.Segments.end()));
+}
 void SegmentSet::sortNStat()
 {
 	sort(Segments.begin(),Segments.begin()+Segments.size());

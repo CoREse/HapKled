@@ -100,6 +100,7 @@ struct SegmentSet
     std::vector<unsigned> MaxEnds;
     std::tuple<int,int> getInvolved(int Start, int End);//Start and End is inclusive, return is [)
     void add(int Begin, int End);
+    void merge(SegmentSet& Other);//will purge Other.
     void sortNStat();
     Segment& operator[](unsigned i);
     SegmentSet();

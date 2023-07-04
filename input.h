@@ -23,7 +23,7 @@ struct Sam
 	void close();
 };
 
-void collectSignatures(Contig &TheContig, std::vector<std::vector<std::vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, std::vector<Sam>& SamFiles, std::vector<Stats> AllStats, std::vector<int> AllTechs, double* CoverageWindows, const char * DataSource=0);
+void collectSignatures(Contig &TheContig, std::vector<std::vector<std::vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, std::vector<Sam>& SamFiles, std::vector<Stats> AllStats, std::vector<int> AllTechs, double* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource=0);
 
 std::vector<Stats> getAllStats(const char * ReferenceFileName, const std::vector<const char *> & BamFileNames, std::vector<int> AllTechs);
 
