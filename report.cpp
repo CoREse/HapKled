@@ -762,6 +762,11 @@ VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> &
     else if (ST2>30) Keep=true;
     else
     {
+        if (Args.MinPosSTD[SVTypeI]!=-1)
+        {
+            double PSD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+            if (PSD>Args.MinPosSTD[SVTypeI]) {Keep=false;return;}
+        }
         double (*ASSBases)[2]=Args.ASSBases;
         double (*ASSCoverageMulti)[2]=Args.ASSCoverageMulti;
         double (*LSDRSs)[2]=Args.LSDRSs;

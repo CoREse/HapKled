@@ -214,6 +214,10 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "OScoreBRatio", 1, "Ratio", "ScoreB ratio for omni.b merge.",'F',&(Args.OmniBScoreBRatio));
     OH.addOpt(0, "OmniA", 1, "ValueA", "A for omni.b merge.",'i',&(Args.OmniA));
     OH.addOpt(0, "OmniB", 1, "ValueB", "B for omni.b merge.",'i',&(Args.OmniB));
+    OH.addOpt(0, "DelMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[0]));
+    OH.addOpt(0, "InsMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[1]));
+    OH.addOpt(0, "DupMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[2]));
+    OH.addOpt(0, "InvMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[3]));
 	#ifdef DEBUG
     OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
 	string WriteSigDataFileName="";

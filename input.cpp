@@ -334,6 +334,9 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 				FormerI=j;
 				LatterI=i;
 			}
+			// int Tolerance=0;
+			// if (Aligns[LatterI].Pos+Tolerance<Aligns[FormerI].End) continue;
+			// // if (Aligns[LatterI].Pos>Aligns[FormerI].End+Tolerance) continue;
 			int Gap=(Aligns[j].InnerPos-Aligns[i].InnerEnd)-(Aligns[LatterI].Pos-Aligns[FormerI].End);
 			if (Aligns[FormerI].End<Aligns[LatterI].Pos+Args.InsClipTolerance && Gap>=Args.MinSVLen)
 			{

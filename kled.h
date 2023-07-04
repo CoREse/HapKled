@@ -19,7 +19,7 @@
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.1.2";
+	const char * Version="1.1.3";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	std::string CommandLine;
@@ -127,6 +127,7 @@ struct Arguments {
 	int OmniBMaxEdges=8;
 	int OmniBCountLimit=20;
 	double OmniBScoreBRatio=0.1;
+	int MinPosSTD[NumberOfSVTypes]={-1,-1,-1,-1};//Filter out clusters that have position stds > MinPosSTD, -1: don't filter.
 };
 
 #endif
