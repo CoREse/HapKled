@@ -481,7 +481,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood<T>>());
             BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood<T>(SortedTs[i],Args.AllCCS));
         }
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (int i=0;i<BatchBrotherhoods.size();++i)
         {
             brotherClusteringList(BatchBrotherhoods[i],Args);
@@ -529,7 +529,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i+1],BatchBrotherhoods[i+1].begin(),RightIter);
             // Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
         }
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (int i=0;i<Edges.size();++i)
         {
             brotherClusteringList(Edges[i],Args);
@@ -1077,12 +1077,12 @@ void brotherClustering2(vector<Signature> & SortedSignatures, vector<vector<Sign
     }
 }
 
-void clustering(vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args)
+void clustering(int SVTypeI, vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args)
 {
     // fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
     // batchClustering(SortedSignatures,Clusters,BamStats,Args);
     // brotherClustering(SortedSignatures,Clusters,BamStats,Args);
-    if (SortedSignatures.size()>0 && Args.BrotherhoodNearRanges[SortedSignatures[0].SupportedSV]==-1)
+    if (SortedSignatures.size()>0 && Args.BrotherhoodNearRanges[SVTypeI]==-1)
     {
         brotherClustering(SortedSignatures,Clusters,BamStats,Args);
         for (int i=0;i<Clusters.size();++i) Cores.push_back(ClusterCore());

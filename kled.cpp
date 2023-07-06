@@ -10,7 +10,7 @@
 #include "htslib/htslib/faidx.h"
 #include <algorithm>
 #include "crelib/crelib.h"
-#include <omp.h>
+// #include <omp.h>
 #include <iterator>
 #include <functional>
 #include <sstream>
@@ -133,7 +133,81 @@ bool toCall(const Contig & C, const Arguments &Args)
 	return true;
 }
 
-#pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
+void preClustering(Contig *Contigs, vector<double> & ContigWholeCoverage, vector<double> & ContigTotalCoverage, int i, vector<unsigned> & ContigBeforeProcessedLength, double * CoverageWindows, Arguments & Args)
+{
+	// WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+	ContigWholeCoverage[i]=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args);
+	ContigTotalCoverage[i]=ContigTotalCoverage[i-1]*((double)(ContigBeforeProcessedLength[i])/(double)(ContigBeforeProcessedLength[i]+Contigs[i].Size));
+	ContigTotalCoverage[i]+=ContigWholeCoverage[i]*((double)(Contigs[i].Size)/(double)(ContigBeforeProcessedLength[i]+Contigs[i].Size));
+}
+
+void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vector<vector<vector<Signature>>> &TypeSignatures, vector<SegmentSet> &ContigsAllPrimarySegments, vector<double*> &CoverageWindowsPs, vector<double> ContigTotalCoverage, vector<vector<vector<VCFRecord>>> &ContigOutputs, Arguments & Args)
+{
+	unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+	unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
+
+	double *CoverageWindows=CoverageWindowsPs[i];
+	SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
+	vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
+	#ifdef DEBUG
+	if (WriteSigDataFileName!="")
+	{
+		if (!ofs.is_open())
+			ofs.open(WriteSigDataFileName.c_str(),ios::binary);
+		boost::archive::binary_oarchive oa(ofs);
+		oa << NumberOfCoverageWindows;
+		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+		oa << AllPrimarySegments;
+		oa << ContigTypeSignatures;
+		continue;
+	}
+	else if (ReadSigDataFileName=="")
+	{
+		if (!ofs.is_open())
+			ofs.open("data/SigData.dat",ios::binary);
+		boost::archive::binary_oarchive oa(ofs);
+		oa << NumberOfCoverageWindows;
+		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+		oa << AllPrimarySegments;
+		oa << ContigTypeSignatures;
+	}
+	#endif
+	
+	vector<vector<Signature>> SignatureClusters;
+	vector<ClusterCore> SignatureClusterCores;
+	sortAndDeDup(ContigTypeSignatures[t]);
+	for (unsigned d=0;d<ContigTypeSignatures[t].size();++d) ContigTypeSignatures[t][d].setID(d);
+	clustering(t, ContigTypeSignatures[t],SignatureClusters,SignatureClusterCores,AllStats[i],Args);
+	
+	vector<VCFRecord> Records;
+	// #pragma omp parallel for reduction(RecordVectorConc:Records)
+	for (int j=0;j<SignatureClusters.size();++j)
+	{
+		// ++Times[omp_get_thread_num()];
+		if (SignatureClusters[j].size()==0) continue;
+		ClusterCore Core;
+		if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
+		Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, ContigTotalCoverage[i], Args));
+	}
+	// updateTime("Results generation","Sorting results...");
+	sort(Records.data(),Records.data()+Records.size());
+	// Records.sort();
+	// updateTime("Results sorting","");
+
+	for (auto r: Records)
+	{
+		if (!r.Keep) continue;
+		ContigOutputs[i][r.getSVTypeI()].push_back(r);
+		// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+		// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
+		// ++SVCounts[r.getSVTypeI()];
+		// // printf("\n%s",string(r).c_str());
+	}
+	// free(CoverageWindowsSums);
+	// free(CheckPoints);
+}
+
+// #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
 //#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
 Arguments Args;
@@ -280,7 +354,7 @@ int main(int argc, const char* argv[])
 		}
 	}
 
-	omp_set_num_threads(Args.ThreadN);
+	// omp_set_num_threads(Args.ThreadN);
 	// ThreadPool ThePool(8);
 
 	fprintf(stderr,"Running kled v%s\n",Args.Version);
@@ -326,11 +400,42 @@ int main(int argc, const char* argv[])
 	ifstream ifs;
 	ofstream ofs;
 	#endif
+	// int Skipped=0;
+	vector<vector<vector<VCFRecord>>> ContigOutputs;
+	vector<double> ContigWholeCoverage;
+	vector<double> ContigTotalCoverage;
+	vector<unsigned> ContigBeforeProcessedLength;
+	// vector<int> ContigIndex;
+	int Called=0;
+	for (int i=0;i<NSeq;++i)
+	{
+		ContigBeforeProcessedLength.push_back(ProcessedLength);
+		if (toCall(Contigs[i],Args))
+		{
+			ProcessedLength+=Contigs[i].Size;
+			// ContigIndex.push_back(Called++);
+		}
+		// else ContigIndex.push_back(-1);
+		ContigOutputs.push_back(vector<vector<VCFRecord>>());
+		for (int t=0;t<NumberOfSVTypes;++t)
+		{
+			ContigOutputs[i].push_back(vector<VCFRecord>());
+		}
+		ContigWholeCoverage.push_back(0.0);
+		ContigTotalCoverage.push_back(0.0);
+	}
+	ProcessedLength=0;
+	//calling
 	if (!Args.CallByContig)
 	{
 		for (int i=0;i<NSeq;++i)
 		{
-			if (! toCall(Contigs[i],Args)) continue;
+			if (! toCall(Contigs[i],Args))
+			{
+				ContigsAllPrimarySegments.push_back(SegmentSet());
+				CoverageWindowsPs.push_back(NULL);
+				continue;
+			}
 			updateTime("","Calling...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
@@ -360,34 +465,41 @@ int main(int argc, const char* argv[])
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 			CoverageWindowsPs.push_back(CoverageWindows);
 		}
-	}
-	// int Skipped=0;
-	vector<vector<VCFRecord>> ContigOutputs;
-	vector<double> ContigWholeCoverage;
-	vector<int> ContigIndex;
-	int Called=0;
-	for (int i=0;i<NSeq;++i)
-	{
-		if (toCall(Contigs[i],Args))
+		for (int i=0;i<NSeq;++i)
 		{
-			ContigIndex.push_back(Called++);
+			if (! toCall(Contigs[i],Args))
+			{
+				continue;
+			}
+			preClustering(Contigs,ContigWholeCoverage,ContigTotalCoverage, i, ContigBeforeProcessedLength, CoverageWindowsPs[i],Args);
 		}
-		else ContigIndex.push_back(-1);
-		ContigOutputs.push_back(vector<VCFRecord>());
-		ContigWholeCoverage.push_back(0.0);
-	}
-	// #pragma omp parallel for
-	for (int i=0;i<NSeq;++i)
-	{
-		if (! toCall(Contigs[i],Args))
+		for (int i=0;i<NSeq;++i)
 		{
-			// ++Skipped;
-			continue;
+			for (int t=0;t<NumberOfSVTypes;++t)
+			{
+				callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
+			}
 		}
-		unsigned int CoverageWindowSize=Args.CoverageWindowSize;
-		unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
-		if (Args.CallByContig)
+		for (int i=0;i<CoverageWindowsPs.size();++i)
 		{
+			if (CoverageWindowsPs[i]!=NULL) delete CoverageWindowsPs[i];
+			CoverageWindowsPs[i]=nullptr;
+			TypeSignatures[i].clear();
+		}
+		// ContigsAllPrimarySegments[i]=SegmentSet();
+	}
+	else
+	{
+		for (int i=0;i<NSeq;++i)
+		{
+			if (! toCall(Contigs[i],Args))
+			{
+				// ++Skipped;
+				continue;
+			}
+			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
+			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
+
 			updateTime("","Calling...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
@@ -397,176 +509,177 @@ int main(int argc, const char* argv[])
 			AllPrimarySegments.sortNStat();
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 			CoverageWindowsPs.push_back(CoverageWindows);
-		}
-		double *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
-		SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[ContigIndex[i]];
-		vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
-		#ifdef DEBUG
-		if (WriteSigDataFileName!="")
-		{
-			if (!ofs.is_open())
-				ofs.open(WriteSigDataFileName.c_str(),ios::binary);
-			boost::archive::binary_oarchive oa(ofs);
-			oa << NumberOfCoverageWindows;
-			for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-			oa << AllPrimarySegments;
-			oa << ContigTypeSignatures;
-			continue;
-		}
-		else if (ReadSigDataFileName=="")
-		{
-			if (!ofs.is_open())
-				ofs.open("data/SigData.dat",ios::binary);
-			boost::archive::binary_oarchive oa(ofs);
-			oa << NumberOfCoverageWindows;
-			for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-			oa << AllPrimarySegments;
-			oa << ContigTypeSignatures;
-		}
-		#endif
-		// fprintf(stderr,"%u\n",Contigs[i].Size-1);
-		double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
-		CoverageWindows[0]=0;
-		// CoverageWindowsSums[0]=0;
-		int CheckPointInterval=10000;
-		double *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
-		// CheckPoints[0]=0;
-		// for (int i=1;i<NumberOfCoverageWindows+1;++i)
-		// {
-		// 	CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
-		// 	if (i%CheckPointInterval==0)
-		// 	{
-		// 		CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
-		// 		CoverageWindowsSums[i]=0;
-		// 	}
-		// }
-		double &WholeCoverage=ContigWholeCoverage[i];
-		WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
-		// int NameLength=Contigs[i].Name.length();
-		// fwrite(&(NameLength),sizeof(int),1,WindowsFile);
-		// fwrite(Contigs[i].Name.c_str(),1,Contigs[i].Name.length(),WindowsFile);
-		// fwrite(&(Contigs[i].Size),sizeof(unsigned),1,WindowsFile);
-		// fwrite(&(NumberOfCoverageWindows),sizeof(unsigned),1,WindowsFile);
-		// fwrite(CoverageWindows,sizeof(double),NumberOfCoverageWindows,WindowsFile);
-		TotalCoverage=TotalCoverage*((double)(ProcessedLength)/(double)(ProcessedLength+Contigs[i].Size));
-		TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
-		Args.TotalCoverage=TotalCoverage;
-		ProcessedLength+=Contigs[i].Size;
-		// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
-		// continue;
-		int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0, NGSCigar=0, NGSClip=0;
-		for (int m=0;m<NumberOfSVTypes;++m)
-		{
-			vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
-			totalsig+=ContigSignatures.size();
-			for (int j=0;j<ContigSignatures.size();++j)
-			{
-				if (ContigSignatures[j].Type==0)
-				{
-					if (ContigSignatures[j].SupportedSV==0) ++cigardel;
-					if (ContigSignatures[j].SupportedSV==1) ++cigarins;
-					if (ContigSignatures[j].SupportedSV==2) ++cigardup;
-					if (ContigSignatures[j].Tech==1) ++NGSCigar;
-				}
-				else if (ContigSignatures[j].Type==1)
-				{
-					if (ContigSignatures[j].SupportedSV==0) ++drpdel;
-					if (ContigSignatures[j].SupportedSV==2) ++drpdup;
-				}
-				else
-				{
-					if (ContigSignatures[j].SupportedSV==0) ++clipdel;
-					if (ContigSignatures[j].SupportedSV==1) ++clipins;
-					if (ContigSignatures[j].SupportedSV==2) ++clipdup;
-					if (ContigSignatures[j].SupportedSV==3) ++clipinv;
-					if (ContigSignatures[j].Tech==1) ++NGSClip;
-				}
-				if (ContigSignatures[j].Tech==0) ++SMRT;
-				else ++NGS;
-			}
-		}
-		fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
-		// extern int forwarded, reversed, nread1, nread2;
-		// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
-		updateTime("Getting signatures","Clustering...");
-		vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
-		vector<ClusterCore> SignatureTypeClusterCores[NumberOfSVTypes];
-		for (int k=0;k<NumberOfSVTypes;++k)
-		{
-			sortAndDeDup(ContigTypeSignatures[k]);
-			for (unsigned d=0;d<ContigTypeSignatures[k].size();++d) ContigTypeSignatures[k][d].setID(d);
-			clustering(ContigTypeSignatures[k],SignatureTypeClusters[k],SignatureTypeClusterCores[k],AllStats[i],Args);
-		}
-		updateTime("Clustering","Generating results...");
-		vector<vector<Signature>> SignatureClusters;
-		vector<ClusterCore> SignatureClusterCores;
-		for (int k=0;k<NumberOfSVTypes;++k)
-		{
-			SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
-			SignatureClusterCores.insert(SignatureClusterCores.end(),make_move_iterator(SignatureTypeClusterCores[k].begin()),make_move_iterator(SignatureTypeClusterCores[k].end()));
-		}
-		
-		totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0;
-		for (int m=0;m<SignatureClusters.size();++m)
-		{
-			// vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
-			// totalsig+=ContigSignatures.size();
-			for (int j=0;j<SignatureClusters[m].size();++j)
-			{
-				if (SignatureClusters[m][j].Type==0)
-				{
-					if (SignatureClusters[m][j].SupportedSV==0) ++cigardel;
-					if (SignatureClusters[m][j].SupportedSV==1) ++cigarins;
-					if (SignatureClusters[m][j].SupportedSV==2) ++cigardup;
-				}
-				else if (SignatureClusters[m][j].Type==1)
-				{
-					if (SignatureClusters[m][j].SupportedSV==0) ++drpdel;
-					if (SignatureClusters[m][j].SupportedSV==2) ++drpdup;
-				}
-				else
-				{
-					if (SignatureClusters[m][j].SupportedSV==0) ++clipdel;
-					if (SignatureClusters[m][j].SupportedSV==1) ++clipins;
-					if (SignatureClusters[m][j].SupportedSV==2) ++clipdup;
-					if (SignatureClusters[m][j].SupportedSV==3) ++clipinv;
-				}
-				if (SignatureClusters[m][j].Tech==0) ++SMRT;
-				else ++NGS;
-			}
-		}
-		fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
-		vector<VCFRecord> Records;
-		// #pragma omp parallel for reduction(RecordVectorConc:Records)
-		for (int j=0;j<SignatureClusters.size();++j)
-		{
-			// ++Times[omp_get_thread_num()];
-			if (SignatureClusters[j].size()==0) continue;
-			ClusterCore Core;
-			if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
-			Records.push_back(VCFRecord(Contigs[i],Ref,SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
-		}
-		updateTime("Results generation","Sorting results...");
-		sort(Records.data(),Records.data()+Records.size());
-		// Records.sort();
-		updateTime("Results sorting","");
+			// double *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
+			// SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[ContigIndex[i]];
+			vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
+			#ifdef DEBUG
+			if (WriteSigDataFileName!="")
+			{
+				if (!ofs.is_open())
+					ofs.open(WriteSigDataFileName.c_str(),ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << NumberOfCoverageWindows;
+				for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+				oa << AllPrimarySegments;
+				oa << ContigTypeSignatures;
+				continue;
+			}
+			else if (ReadSigDataFileName=="")
+			{
+				if (!ofs.is_open())
+					ofs.open("data/SigData.dat",ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << NumberOfCoverageWindows;
+				for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
+				oa << AllPrimarySegments;
+				oa << ContigTypeSignatures;
+			}
+			#endif
+			// fprintf(stderr,"%u\n",Contigs[i].Size-1);
+			double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
+			CoverageWindows[0]=0;
+			// CoverageWindowsSums[0]=0;
+			int CheckPointInterval=10000;
+			double *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
+			// CheckPoints[0]=0;
+			// for (int i=1;i<NumberOfCoverageWindows+1;++i)
+			// {
+			// 	CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
+			// 	if (i%CheckPointInterval==0)
+			// 	{
+			// 		CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
+			// 		CoverageWindowsSums[i]=0;
+			// 	}
+			// }
+			double &WholeCoverage=ContigWholeCoverage[i];
+			WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+			// int NameLength=Contigs[i].Name.length();
+			// fwrite(&(NameLength),sizeof(int),1,WindowsFile);
+			// fwrite(Contigs[i].Name.c_str(),1,Contigs[i].Name.length(),WindowsFile);
+			// fwrite(&(Contigs[i].Size),sizeof(unsigned),1,WindowsFile);
+			// fwrite(&(NumberOfCoverageWindows),sizeof(unsigned),1,WindowsFile);
+			// fwrite(CoverageWindows,sizeof(double),NumberOfCoverageWindows,WindowsFile);
+			TotalCoverage=TotalCoverage*((double)(ProcessedLength)/(double)(ProcessedLength+Contigs[i].Size));
+			TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
+			Args.TotalCoverage=TotalCoverage;
+			ProcessedLength+=Contigs[i].Size;
+			// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
+			// continue;
+			int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0, NGSCigar=0, NGSClip=0;
+			for (int m=0;m<NumberOfSVTypes;++m)
+			{
+				vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
+				totalsig+=ContigSignatures.size();
+				for (int j=0;j<ContigSignatures.size();++j)
+				{
+					if (ContigSignatures[j].Type==0)
+					{
+						if (ContigSignatures[j].SupportedSV==0) ++cigardel;
+						if (ContigSignatures[j].SupportedSV==1) ++cigarins;
+						if (ContigSignatures[j].SupportedSV==2) ++cigardup;
+						if (ContigSignatures[j].Tech==1) ++NGSCigar;
+					}
+					else if (ContigSignatures[j].Type==1)
+					{
+						if (ContigSignatures[j].SupportedSV==0) ++drpdel;
+						if (ContigSignatures[j].SupportedSV==2) ++drpdup;
+					}
+					else
+					{
+						if (ContigSignatures[j].SupportedSV==0) ++clipdel;
+						if (ContigSignatures[j].SupportedSV==1) ++clipins;
+						if (ContigSignatures[j].SupportedSV==2) ++clipdup;
+						if (ContigSignatures[j].SupportedSV==3) ++clipinv;
+						if (ContigSignatures[j].Tech==1) ++NGSClip;
+					}
+					if (ContigSignatures[j].Tech==0) ++SMRT;
+					else ++NGS;
+				}
+			}
+			fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
+			// extern int forwarded, reversed, nread1, nread2;
+			// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
+			updateTime("Getting signatures","Clustering...");
+			vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
+			vector<ClusterCore> SignatureTypeClusterCores[NumberOfSVTypes];
+			for (int k=0;k<NumberOfSVTypes;++k)
+			{
+				sortAndDeDup(ContigTypeSignatures[k]);
+				for (unsigned d=0;d<ContigTypeSignatures[k].size();++d) ContigTypeSignatures[k][d].setID(d);
+				clustering(k, ContigTypeSignatures[k],SignatureTypeClusters[k],SignatureTypeClusterCores[k],AllStats[i],Args);
+			}
+			updateTime("Clustering","Generating results...");
+			vector<vector<Signature>> SignatureClusters;
+			vector<ClusterCore> SignatureClusterCores;
+			for (int k=0;k<NumberOfSVTypes;++k)
+			{
+				SignatureClusters.insert(SignatureClusters.end(),make_move_iterator(SignatureTypeClusters[k].begin()),make_move_iterator(SignatureTypeClusters[k].end()));
+				SignatureClusterCores.insert(SignatureClusterCores.end(),make_move_iterator(SignatureTypeClusterCores[k].begin()),make_move_iterator(SignatureTypeClusterCores[k].end()));
+			}
+			
+			totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0;
+			for (int m=0;m<SignatureClusters.size();++m)
+			{
+				// vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
+				// totalsig+=ContigSignatures.size();
+				for (int j=0;j<SignatureClusters[m].size();++j)
+				{
+					if (SignatureClusters[m][j].Type==0)
+					{
+						if (SignatureClusters[m][j].SupportedSV==0) ++cigardel;
+						if (SignatureClusters[m][j].SupportedSV==1) ++cigarins;
+						if (SignatureClusters[m][j].SupportedSV==2) ++cigardup;
+					}
+					else if (SignatureClusters[m][j].Type==1)
+					{
+						if (SignatureClusters[m][j].SupportedSV==0) ++drpdel;
+						if (SignatureClusters[m][j].SupportedSV==2) ++drpdup;
+					}
+					else
+					{
+						if (SignatureClusters[m][j].SupportedSV==0) ++clipdel;
+						if (SignatureClusters[m][j].SupportedSV==1) ++clipins;
+						if (SignatureClusters[m][j].SupportedSV==2) ++clipdup;
+						if (SignatureClusters[m][j].SupportedSV==3) ++clipinv;
+					}
+					if (SignatureClusters[m][j].Tech==0) ++SMRT;
+					else ++NGS;
+				}
+			}
+			fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
-		for (auto r: Records)
-		{
-			if (!r.Keep) continue;
-			ContigOutputs[i].push_back(r);
-			// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-			// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
-			// ++SVCounts[r.getSVTypeI()];
-			// // printf("\n%s",string(r).c_str());
+			vector<VCFRecord> Records;
+			// #pragma omp parallel for reduction(RecordVectorConc:Records)
+			for (int j=0;j<SignatureClusters.size();++j)
+			{
+				// ++Times[omp_get_thread_num()];
+				if (SignatureClusters[j].size()==0) continue;
+				ClusterCore Core;
+				if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
+				Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+			}
+			updateTime("Results generation","Sorting results...");
+			sort(Records.data(),Records.data()+Records.size());
+			// Records.sort();
+			updateTime("Results sorting","");
+
+			for (auto r: Records)
+			{
+				if (!r.Keep) continue;
+				ContigOutputs[i][r.getSVTypeI()].push_back(r);
+				// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+				// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
+				// ++SVCounts[r.getSVTypeI()];
+				// // printf("\n%s",string(r).c_str());
+			}
+			delete CoverageWindows;
+			CoverageWindowsPs[i]=nullptr;
+			TypeSignatures[i].clear();
+			ContigsAllPrimarySegments[i]=SegmentSet();
+			// free(CoverageWindowsSums);
+			// free(CheckPoints);
 		}
-		delete CoverageWindows;
-		CoverageWindowsPs[i]=nullptr;
-		TypeSignatures[i].clear();
-		ContigsAllPrimarySegments[i]=SegmentSet();
-		// free(CoverageWindowsSums);
-		// free(CheckPoints);
 	}
 	#ifdef DEBUG
 	if (ifs.is_open()) ifs.close();
@@ -578,14 +691,22 @@ int main(int argc, const char* argv[])
 		Header.addSample(Args.SampleName.c_str());
 		printf(Header.genHeader(Args).c_str());
 	}
-	for (int i=0;i<NSeq;++i) for (int j=0;j<ContigOutputs[i].size();++j)
+	for (int i=0;i<NSeq;++i)
 	{
-		VCFRecord &r=ContigOutputs[i][j];
-		if (!r.Keep) continue;
-		// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-		r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], ContigWholeCoverage[i],Args);
-		++SVCounts[r.getSVTypeI()];
-		printf("\n%s",string(r).c_str());
+		for (int t=1;t<NumberOfSVTypes;++t)
+		{
+			if (ContigOutputs[i][t].size()!=0) ContigOutputs[i][0].insert(ContigOutputs[i][0].end(),make_move_iterator(ContigOutputs[i][t].begin()),make_move_iterator(ContigOutputs[i][t].end()));
+		}
+		sort(ContigOutputs[i][0].begin(),ContigOutputs[i][0].end());
+		for (int j=0;j<ContigOutputs[i][0].size();++j)
+		{
+			VCFRecord &r=ContigOutputs[i][0][j];
+			if (!r.Keep) continue;
+			// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+			r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], ContigWholeCoverage[i],Args);
+			++SVCounts[r.getSVTypeI()];
+			printf("\n%s",string(r).c_str());
+		}
 	}
 
 	//report(VariantsByContig);

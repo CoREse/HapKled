@@ -697,7 +697,7 @@ int VN=0;
 VCFRecord::VCFRecord()
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
 {}
-VCFRecord::VCFRecord(const Contig & TheContig, faidx_t * Ref,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
+VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
 {
     assert(SignatureCluster.size()>=0);
