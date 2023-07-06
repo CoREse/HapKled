@@ -15,6 +15,7 @@
 #include <functional>
 #include <sstream>
 #include <iostream>
+#include "htslib/thread_pool.h"
 #ifdef DEBUG
 #include <fstream>
 
@@ -141,6 +142,20 @@ void preClustering(Contig *Contigs, vector<double> & ContigWholeCoverage, vector
 	ContigTotalCoverage[i]+=ContigWholeCoverage[i]*((double)(Contigs[i].Size)/(double)(ContigBeforeProcessedLength[i]+Contigs[i].Size));
 }
 
+struct CallingContigTypeArgs
+{
+	Contig *Contigs;
+	vector<Stats> *AllStats;
+	int i;
+	int t;
+	vector<vector<vector<Signature>>> *TypeSignatures;
+	vector<SegmentSet> *ContigsAllPrimarySegments;
+	vector<double*> *CoverageWindowsPs;
+	vector<double> *ContigTotalCoverage;
+	vector<vector<vector<VCFRecord>>> *ContigOutputs;
+	Arguments * Args;
+};
+
 void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vector<vector<vector<Signature>>> &TypeSignatures, vector<SegmentSet> &ContigsAllPrimarySegments, vector<double*> &CoverageWindowsPs, vector<double> ContigTotalCoverage, vector<vector<vector<VCFRecord>>> &ContigOutputs, Arguments & Args)
 {
 	unsigned int CoverageWindowSize=Args.CoverageWindowSize;
@@ -205,6 +220,14 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	}
 	// free(CoverageWindowsSums);
 	// free(CheckPoints);
+}
+
+void* handleCallContigType(void* Args)
+{
+	CallingContigTypeArgs * A=(CallingContigTypeArgs*)Args;
+	callContigType(A->Contigs, *A->AllStats, A->i, A->t, *A->TypeSignatures, *A->ContigsAllPrimarySegments, *A->CoverageWindowsPs, *A->ContigTotalCoverage, *A->ContigOutputs, *A->Args);
+	delete A;
+	return NULL;
 }
 
 // #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
@@ -473,8 +496,33 @@ int main(int argc, const char* argv[])
 			}
 			preClustering(Contigs,ContigWholeCoverage,ContigTotalCoverage, i, ContigBeforeProcessedLength, CoverageWindowsPs[i],Args);
 		}
+		if (Args.ThreadN>1)
+		{	
+			extern htsThreadPool p;
+			hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+			for (int i=0;i<NSeq;++i)
+			{
+				if (! toCall(Contigs[i],Args))
+				{
+					continue;
+				}
+				for (int t=0;t<NumberOfSVTypes;++t)
+				{
+					CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
+					hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
+					// callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
+				}
+			}
+			hts_tpool_process_flush(CallingProcess);
+			hts_tpool_process_destroy(CallingProcess);
+		}
+		else
 		for (int i=0;i<NSeq;++i)
 		{
+			if (! toCall(Contigs[i],Args))
+			{
+				continue;
+			}
 			for (int t=0;t<NumberOfSVTypes;++t)
 			{
 				callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
@@ -708,6 +756,7 @@ int main(int argc, const char* argv[])
 			printf("\n%s",string(r).c_str());
 		}
 	}
+	updateTime("Output finished.","All done.");
 
 	//report(VariantsByContig);
 	fai_destroy(Ref);
