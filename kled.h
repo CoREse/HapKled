@@ -19,7 +19,7 @@
 const int NumberOfSVTypes=4;//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.1.3";
+	const char * Version="1.1.4";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	std::string CommandLine;

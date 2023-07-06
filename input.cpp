@@ -8,7 +8,7 @@
 #include <string>
 #include <mutex>
 #include <unistd.h>
-//#include <omp.h>
+// #include <omp.h>
 #include "htslib/htslib/bgzf.h"
 #include <thread>
 #include <stdexcept>
@@ -1584,6 +1584,26 @@ void closeSam(vector<Sam> &SamFiles)
 	if (p.pool) hts_tpool_destroy(p.pool);
 }
 
+struct ReduceCWArgs
+{
+	double * CoverageWindows;
+	int Begin;
+	int CoverageWindowsN;
+	unordered_map<pthread_t,double *> &ProcessCovW;
+};
+void * reduceCW(void * Args)
+{
+	ReduceCWArgs *A=(ReduceCWArgs*)Args;
+	int End=min(A->CoverageWindowsN,A->Begin+100);
+	for (unsigned long i=A->Begin;i<End;++i)
+	{
+		for (int pi=0;pi<A->ProcessCovW.size();++pi)
+		A->CoverageWindows[i]+=A->ProcessCovW[(p.pool->t+pi)->tid][i];
+	}
+	delete A;
+	return NULL;
+}
+
 void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource)
 {
 	const char * ReferenceFileName=Args.ReferenceFileName;
@@ -1671,7 +1691,6 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				}
 				bam_destroy1(br);
 				hts_tpool_process_flush(HandlebrProcess);
-				hts_tpool_process_destroy(HandlebrProcess);
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					AlignmentsSigs.insert(AlignmentsSigs.end(),make_move_iterator(ProcessASVec[(p.pool->t+pi)->tid].begin()),make_move_iterator(ProcessASVec[(p.pool->t+pi)->tid].end()));
@@ -1684,9 +1703,21 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 						}
 					}
 					AllPrimarySegments.merge(ProcessSegS[(p.pool->t+pi)->tid]);
-					for (unsigned long i=0;i<CoverageWindowsN;++i) CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
-					free(ProcessCovW[(p.pool->t+pi)->tid]);
+					// // #pragma omp parallel for
+					// for (unsigned long i=0;i<CoverageWindowsN;++i) CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
 				}
+				for (int i=0;i<CoverageWindowsN;i+=100)
+				{
+					ReduceCWArgs *A=new ReduceCWArgs{CoverageWindows,i,CoverageWindowsN,ProcessCovW};
+					hts_tpool_dispatch(p.pool,HandlebrProcess,reduceCW,(void *)A);
+				}
+				hts_tpool_process_flush(HandlebrProcess);
+				for (int pi=0;pi<p.pool->tsize;++pi)
+				{
+					free(ProcessCovW[(p.pool->t+pi)->tid]);
+					ProcessCovW[(p.pool->t+pi)->tid]=NULL;
+				}
+				hts_tpool_process_destroy(HandlebrProcess);
 			}
 		}
 		// if (DataSource!=0 && strcmp(DataSource,"-")!=0) pclose(DSFile);
