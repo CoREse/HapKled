@@ -10,7 +10,7 @@
 #include "htslib/htslib/faidx.h"
 #include <algorithm>
 #include "crelib/crelib.h"
-// #include <omp.h>
+#include <omp.h>
 #include <iterator>
 #include <functional>
 #include <sstream>
@@ -137,7 +137,7 @@ bool toCall(const Contig & C, const Arguments &Args)
 void preClustering(Contig *Contigs, vector<double> & ContigWholeCoverage, vector<double> & ContigTotalCoverage, int i, vector<unsigned> & ContigBeforeProcessedLength, double * CoverageWindows, Arguments & Args)
 {
 	// WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
-	ContigWholeCoverage[i]=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args);
+	ContigWholeCoverage[i]=getAverageCoverage(0,Contigs[i].Size,CoverageWindows,Args);
 	ContigTotalCoverage[i]=ContigTotalCoverage[i-1]*((double)(ContigBeforeProcessedLength[i])/(double)(ContigBeforeProcessedLength[i]+Contigs[i].Size));
 	ContigTotalCoverage[i]+=ContigWholeCoverage[i]*((double)(Contigs[i].Size)/(double)(ContigBeforeProcessedLength[i]+Contigs[i].Size));
 }
@@ -236,6 +236,7 @@ void* handleCallContigType(void* Args)
 Arguments Args;
 int main(int argc, const char* argv[])
 {
+	Logger Log;
 	string RunString=Args.Version;
 	for (int i=1;i<argc;++i) RunString+=string(" ")+argv[i];
 	Args.CommandLine=argv[0];
@@ -251,6 +252,7 @@ int main(int argc, const char* argv[])
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
     OH.addOpt('t', "threads", 1, "Number", "Number of threads.",'i',&(Args.ThreadN));
+    OH.addOpt('V', "verbosity", 1, "", "Set the logging verbosity, <=0: info, 1: verbose, >=2: debug.",'i',&(Log.Verbosity));
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
     OH.addOpt(0, "BC", 0, "", "Calling contig by contig, cost less memory.",'b',&(Args.CallByContig));
@@ -377,7 +379,7 @@ int main(int argc, const char* argv[])
 		}
 	}
 
-	// omp_set_num_threads(Args.ThreadN);
+	omp_set_num_threads(Args.ThreadN);
 	// ThreadPool ThePool(8);
 
 	fprintf(stderr,"Running kled v%s\n",Args.Version);
@@ -498,8 +500,9 @@ int main(int argc, const char* argv[])
 		}
 		if (Args.ThreadN>1)
 		{	
-			extern htsThreadPool p;
-			hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+			// extern htsThreadPool p;
+			// hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+			#pragma omp parallel for
 			for (int i=0;i<NSeq;++i)
 			{
 				if (! toCall(Contigs[i],Args))
@@ -508,13 +511,13 @@ int main(int argc, const char* argv[])
 				}
 				for (int t=0;t<NumberOfSVTypes;++t)
 				{
-					CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
-					hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
-					// callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
+					// CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
+					// hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
+					callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
 				}
 			}
-			hts_tpool_process_flush(CallingProcess);
-			hts_tpool_process_destroy(CallingProcess);
+			// hts_tpool_process_flush(CallingProcess);
+			// hts_tpool_process_destroy(CallingProcess);
 		}
 		else
 		for (int i=0;i<NSeq;++i)

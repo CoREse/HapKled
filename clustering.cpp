@@ -481,7 +481,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood<T>>());
             BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood<T>(SortedTs[i],Args.AllCCS));
         }
-        // #pragma omp parallel for
+        #pragma omp parallel for
         for (int i=0;i<BatchBrotherhoods.size();++i)
         {
             brotherClusteringList(BatchBrotherhoods[i],Args);
@@ -529,7 +529,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i+1],BatchBrotherhoods[i+1].begin(),RightIter);
             // Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
         }
-        // #pragma omp parallel for
+        #pragma omp parallel for
         for (int i=0;i<Edges.size();++i)
         {
             brotherClusteringList(Edges[i],Args);
@@ -1087,7 +1087,7 @@ void clustering(int SVTypeI, vector<Signature> & SortedSignatures, vector<vector
         brotherClustering(SortedSignatures,Clusters,BamStats,Args);
         for (int i=0;i<Clusters.size();++i) Cores.push_back(ClusterCore());
     }
-    else brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
+    else if (SortedSignatures.size()>0) brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
     // mergeClusters(Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats,true);
     fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());

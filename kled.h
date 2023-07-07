@@ -54,18 +54,18 @@ struct Arguments {
     int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.0,1.0,0.6,0.5};//For SV Types
+    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.0,1.0,0.7,0.1};//For SV Types
        int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={100,0,200,100};
-    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.1,0.2,0.3,0.5};//For SV Types
-       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={0,0,800,100};
-       int BrotherhoodCLRNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
+    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.1,0.2,0.3,0.1};//For SV Types
+       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={0,0,100,0};
+       int BrotherhoodCLRNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
        int BrotherhoodCLRTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodCLRTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    double BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,2.0,2.0};//For SV Types
-    int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,100,100};
-    double BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.5};//For SV Types
-    int BrotherhoodCCSTypeLengthMinEndurance[NumberOfSVTypes]={10,50,500,100};
-       int BrotherhoodCCSNearRanges[NumberOfSVTypes]={-1,-1,200,200};//If -1, use brotherhoodcluster1
+    double BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,0.7,0.1};//For SV Types
+    int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,200,100};
+    double BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.3,0.1};//For SV Types
+    int BrotherhoodCCSTypeLengthMinEndurance[NumberOfSVTypes]={10,50,100,0};
+       int BrotherhoodCCSNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
        int BrotherhoodCCSTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodCCSTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
 	bool AllCLR=false;
@@ -87,27 +87,27 @@ struct Arguments {
 	{{0,2}//DEL
 	,{2,0}//INS
 	,{4,0}//DUP
-	,{0,2}};//INV
+	,{2,1}};//INV
 	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.4,0.09},
 	{0.09,0.39},
-	{0.13,0.29},
-	{0,0.09}};
+	{0.13,0.1},
+	{0,0.18}};
 	double CLRLSDRSs[NumberOfSVTypes][2]={{55, 75},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{60,90},
-	{85,95},
-	{100,100}};
+	{85,99},
+	{98,0}};
 	double CCSASSBases[NumberOfSVTypes][2]={{0,0},
 	{0,0},
-	{4,0},//Need further polish
-	{4,0}};//Need further polish
+	{4,0},
+	{2,1}};
 	double CCSASSCoverageMulti[NumberOfSVTypes][2]={{0.31,0.1},
 	{0.33,0.13},
-	{0.13,0.29},
-	{0,0.09}};
+	{0.13,0.1},
+	{0,0.18}};
 	double CCSLSDRSs[NumberOfSVTypes][2]={{55, 95},
 	{55,95},
-	{85,95},
-	{100,100}};
+	{85,99},
+	{98,0}};
     double PreciseStandard=3;
     int MinimumPreciseTemplates=5;
 
