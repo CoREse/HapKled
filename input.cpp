@@ -1802,7 +1802,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					ProcessSigVec[(p.pool->t+pi)->tid]=vector<vector<Signature>>();
-					for (int i=0;i<TypeSignatures.size();++i)
+					for (int i=0;i<2;++i)
 					{
 						ProcessSigVec[(p.pool->t+pi)->tid].push_back(vector<Signature>());
 					}
@@ -1818,7 +1818,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				hts_tpool_process_destroy(MergingSigProcess);
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
-					for (int i=0;i<TypeSignatures.size();++i)
+					for (int i=0;i<2;++i)
 					{
 							//make move iterator works even with different life intervals.
 						TypeSignatures[TheContig.ID][i].insert(TypeSignatures[TheContig.ID][i].end(),make_move_iterator(ProcessSigVec[(p.pool->t+pi)->tid][i].begin()),make_move_iterator(ProcessSigVec[(p.pool->t+pi)->tid][i].end()));
@@ -1845,7 +1845,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					ProcessSigVec[(p.pool->t+pi)->tid]=vector<vector<Signature>>();
-					for (int i=0;i<TypeSignatures.size();++i)
+					for (int i=0;i<2;++i)
 					{
 						ProcessSigVec[(p.pool->t+pi)->tid].push_back(vector<Signature>());
 					}
@@ -1861,7 +1861,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				hts_tpool_process_destroy(MergingSigProcess);
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
-					for (int i=0;i<TypeSignatures.size();++i)
+					for (int i=0;i<2;++i)
 					{
 							//make move iterator works even with different life intervals.
 						TypeSignatures[TheContig.ID][i].insert(TypeSignatures[TheContig.ID][i].end(),make_move_iterator(ProcessSigVec[(p.pool->t+pi)->tid][i].begin()),make_move_iterator(ProcessSigVec[(p.pool->t+pi)->tid][i].end()));
