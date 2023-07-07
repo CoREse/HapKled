@@ -515,7 +515,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
                 if (LeftIter==LeftMost)
                 {
                     if (i!=0 && !(LeftIter->MaxBegin<Left))
-                    fprintf(stderr,"Risk of not fully clustered detected.\n");//Change batch size to sig count related to avoid? Or, can be avoided by extend the boundaries. The influence is trivial, so it's not urgent to solve it.
+                    Args.Log.verbose("Risk of not fully clustered detected.");//Change batch size to sig count related to avoid? Or, can be avoided by extend the boundaries. The influence is trivial, so it's not urgent to solve it.
                     break;
                 }
             }
@@ -524,7 +524,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
                 if (RightIter->MinBegin>Right) break;
             }
             if (RightIter==RightMost && i+1!=BatchBrotherhoods.size()-1)
-            fprintf(stderr,"Risk of not fully clustered detected.\n");
+            Args.Log.verbose("Risk of not fully clustered detected.");
             Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i],LeftIter,BatchBrotherhoods[i].end());
             Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i+1],BatchBrotherhoods[i+1].begin(),RightIter);
             // Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
@@ -1077,7 +1077,7 @@ void brotherClustering2(vector<Signature> & SortedSignatures, vector<vector<Sign
     }
 }
 
-void clustering(int SVTypeI, vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args)
+void clustering(int SVTypeI, string & ContigName, vector<Signature> & SortedSignatures, vector<vector<Signature>> &Clusters, vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args)
 {
     // fprintf(stderr,"%lu %lu:\n",SortedSignatures.size(), Clusters.size());
     // batchClustering(SortedSignatures,Clusters,BamStats,Args);
@@ -1090,6 +1090,6 @@ void clustering(int SVTypeI, vector<Signature> & SortedSignatures, vector<vector
     else if (SortedSignatures.size()>0) brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
     // mergeClusters(Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats,true);
-    fprintf(stderr,"Signature number: %lu, cluster number:%lu:\n",SortedSignatures.size(), Clusters.size());
+    Args.Log.debug("%s of %s: number of signatures: %lu, number of clusters:%lu:",SVTypeNames[SVTypeI],ContigName.c_str(),SortedSignatures.size(), Clusters.size());
     // for (int i=0;i<Clusters.size();++i) fprintf(stderr, "%d\n",Clusters[i].size());
 }

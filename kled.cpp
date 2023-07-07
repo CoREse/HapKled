@@ -66,7 +66,7 @@ bool analyzeCustomParas(Arguments & Args)
 			vector<string> sl=split(Args.CustomClusterParas[i], ",");
 			if (sl.size()!=4 && sl.size()!=7 && sl.size()!=5)
 			{
-				fprintf(stderr,"Error: wrong parameter format %s.\n", Args.CustomClusterParas[i].c_str());
+				Args.Log.error("Wrong parameter format %s.", Args.CustomClusterParas[i].c_str());
 				return false;
 			}
 			if (sl[0][0]!='*')
@@ -96,7 +96,7 @@ bool analyzeCustomParas(Arguments & Args)
 			vector<string> sl=split(Args.CustomFilterParas[i], ",");
 			if (sl.size()!=6)
 			{
-				fprintf(stderr,"Error: wrong parameter format %s.\n",Args.CustomFilterParas[i].c_str());
+				Args.Log.error("Wrong parameter format %s.",Args.CustomFilterParas[i].c_str());
 				return false;
 			}
 			if (sl[0][0]!='*')
@@ -192,7 +192,7 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	vector<ClusterCore> SignatureClusterCores;
 	sortAndDeDup(ContigTypeSignatures[t]);
 	for (unsigned d=0;d<ContigTypeSignatures[t].size();++d) ContigTypeSignatures[t][d].setID(d);
-	clustering(t, ContigTypeSignatures[t],SignatureClusters,SignatureClusterCores,AllStats[i],Args);
+	clustering(t, Contigs[i].Name, ContigTypeSignatures[t],SignatureClusters,SignatureClusterCores,AllStats[i],Args);
 	
 	vector<VCFRecord> Records;
 	// #pragma omp parallel for reduction(RecordVectorConc:Records)
@@ -236,7 +236,6 @@ void* handleCallContigType(void* Args)
 Arguments Args;
 int main(int argc, const char* argv[])
 {
-	Logger Log;
 	string RunString=Args.Version;
 	for (int i=1;i<argc;++i) RunString+=string(" ")+argv[i];
 	Args.CommandLine=argv[0];
@@ -252,7 +251,7 @@ int main(int argc, const char* argv[])
     OH.addOpt('C', 0, 1, "ContigName", "Only call variants in Contig(s), can occur multiple times",'s',&(Args.CallingContigs),true);
     OH.addOpt('S', 0, 1, "SampleName", "Sample name, if not given, kled will try to get it from the first bam file",'S',&(Args.SampleName));
     OH.addOpt('t', "threads", 1, "Number", "Number of threads.",'i',&(Args.ThreadN));
-    OH.addOpt('V', "verbosity", 1, "", "Set the logging verbosity, <=0: info, 1: verbose, >=2: debug.",'i',&(Log.Verbosity));
+    OH.addOpt('V', "verbosity", 1, "", "Set the logging verbosity, <=0: info, 1: verbose, >=2: debug.",'i',&(Args.Log.Verbosity));
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
     OH.addOpt(0, "BC", 0, "", "Calling contig by contig, cost less memory.",'b',&(Args.CallByContig));
@@ -382,18 +381,19 @@ int main(int argc, const char* argv[])
 	omp_set_num_threads(Args.ThreadN);
 	// ThreadPool ThePool(8);
 
-	fprintf(stderr,"Running kled v%s\n",Args.Version);
-	updateTime("Starting kled, reading reference...");
+	Logger &Log=Args.Log;
+	time_t StartTime=time(NULL);
+	Log.info("Running kled v%s.",Args.Version);
+	Log.info("Reading reference and getting stats...");
 	int NSeq;
 	Contig * Contigs=getContigs(Args,NSeq);//,RDWindowSize);
     
-	updateTime("Reading reference","Getting stats...");
 	vector<int> AllTechs=getAllTechs(Args);
 	// fprintf(stderr,"All techs:");for (int i=0;i<AllTechs.size();++i) fprintf(stderr," %d",AllTechs[i]);fprintf(stderr,"\n");
 
 	vector<Stats> AllStats=getAllStats(Args.ReferenceFileName,Args.BamFileNames,AllTechs);
 
-	for (int i=0;i<AllStats.size();++i) fprintf(stderr,"%f %f %f %f %f\n",AllStats[i].BelowIS,AllStats[i].MedianIS,AllStats[i].UpIS,AllStats[i].Mean,AllStats[i].SD);
+	for (int i=0;i<AllStats.size();++i) Args.Log.verbose("The stats of %s: %f %f %f %f %f",Args.BamFileNames[i],AllStats[i].BelowIS,AllStats[i].MedianIS,AllStats[i].UpIS,AllStats[i].Mean,AllStats[i].SD);
 	//exit(0);
 
 	VCFHeader Header(Args.ReferenceFileName);
@@ -410,7 +410,7 @@ int main(int argc, const char* argv[])
 	double TotalCoverage=0;//Accumulative
 	unsigned ProcessedLength=0;
 	// FILE * WindowsFile=fopen("/home/cre/workspace/kled/data/wins.txt","wb");
-	updateTime("Getting stats", "Starting calling...");
+	Log.info("Starting calling...");
 	unsigned int SVCounts[NumberOfSVTypes];for (int i=0;i<NumberOfSVTypes;++i) SVCounts[i]=0;
 
 	vector<vector<vector<Signature>>> TypeSignatures;//Contig-Type-Signatures
@@ -453,6 +453,7 @@ int main(int argc, const char* argv[])
 	//calling
 	if (!Args.CallByContig)
 	{
+		Log.info("Reading alignments...");
 		for (int i=0;i<NSeq;++i)
 		{
 			if (! toCall(Contigs[i],Args))
@@ -461,7 +462,6 @@ int main(int argc, const char* argv[])
 				CoverageWindowsPs.push_back(NULL);
 				continue;
 			}
-			updateTime("","Calling...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
@@ -498,6 +498,7 @@ int main(int argc, const char* argv[])
 			}
 			preClustering(Contigs,ContigWholeCoverage,ContigTotalCoverage, i, ContigBeforeProcessedLength, CoverageWindowsPs[i],Args);
 		}
+		Log.info("Clustering and filtering...");
 		if (Args.ThreadN>1)
 		{	
 			// extern htsThreadPool p;
@@ -551,7 +552,7 @@ int main(int argc, const char* argv[])
 			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 
-			updateTime("","Calling...");
+			Log.info("Reading alignments...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			double *CoverageWindows=new double[NumberOfCoverageWindows];
@@ -648,19 +649,20 @@ int main(int argc, const char* argv[])
 					else ++NGS;
 				}
 			}
-			fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
+			Log.debug("%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 			// extern int forwarded, reversed, nread1, nread2;
 			// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
-			updateTime("Getting signatures","Clustering...");
+			
+			Log.info("Clustering and filtering...");
 			vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
 			vector<ClusterCore> SignatureTypeClusterCores[NumberOfSVTypes];
 			for (int k=0;k<NumberOfSVTypes;++k)
 			{
 				sortAndDeDup(ContigTypeSignatures[k]);
 				for (unsigned d=0;d<ContigTypeSignatures[k].size();++d) ContigTypeSignatures[k][d].setID(d);
-				clustering(k, ContigTypeSignatures[k],SignatureTypeClusters[k],SignatureTypeClusterCores[k],AllStats[i],Args);
+				clustering(k, Contigs[i].Name, ContigTypeSignatures[k],SignatureTypeClusters[k],SignatureTypeClusterCores[k],AllStats[i],Args);
 			}
-			updateTime("Clustering","Generating results...");
+			
 			vector<vector<Signature>> SignatureClusters;
 			vector<ClusterCore> SignatureClusterCores;
 			for (int k=0;k<NumberOfSVTypes;++k)
@@ -698,7 +700,7 @@ int main(int argc, const char* argv[])
 					else ++NGS;
 				}
 			}
-			fprintf(stderr,"%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf\n",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
+			Log.debug("%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
 			vector<VCFRecord> Records;
 			// #pragma omp parallel for reduction(RecordVectorConc:Records)
@@ -710,10 +712,8 @@ int main(int argc, const char* argv[])
 				if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
 				Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 			}
-			updateTime("Results generation","Sorting results...");
 			sort(Records.data(),Records.data()+Records.size());
 			// Records.sort();
-			updateTime("Results sorting","");
 
 			for (auto r: Records)
 			{
@@ -736,7 +736,7 @@ int main(int argc, const char* argv[])
 	if (ifs.is_open()) ifs.close();
 	if (ofs.is_open()) ofs.close();
 	#endif
-	updateTime("All contigs finished.","Outputing results...");
+	Log.info("All SV generated, outputing results...");
 	if (!NoHeader)
 	{
 		Header.addSample(Args.SampleName.c_str());
@@ -759,12 +759,12 @@ int main(int argc, const char* argv[])
 			printf("\n%s",string(r).c_str());
 		}
 	}
-	updateTime("Output finished.","All done.");
 
 	//report(VariantsByContig);
 	fai_destroy(Ref);
 	free(Contigs);
 	closeSam(SamFiles);
 	// fclose(WindowsFile);
+	Log.info("All done, cost %lus.",time(NULL)-StartTime);
     return 0;
 }

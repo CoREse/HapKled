@@ -23,7 +23,7 @@ float distance(const Signature &A, const Signature &B, bool Partial=true, float 
 int precisionLevel(const Signature &A);
 int bestPrecision(const Signature &A,const Signature &B);
 int worstPrecision(const Signature &A,const Signature &B);
-void clustering(int SVTypeI, std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, std::vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args);
+void clustering(int SVTypeI, std::string & ContigName, std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, std::vector<ClusterCore> &Cores, Stats BamStats, Arguments& Args);
 // void simpleClustering(std::vector<Signature> & SortedSignatures, std::vector<std::vector<Signature>> &Clusters, Stats BamStats);//like jcrd and cuteSV
 
 #endif

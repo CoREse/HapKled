@@ -358,7 +358,7 @@ void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<A
 {
 	// int RelevantBeginI, RelevantEndI;
 	// getRelevants(pAlignmentSigs, pAlignmentsSigs,RelevantBeginI,RelevantEndI, MaxEnds);
-    if (Index % 10000==0) fprintf(stderr,"Merged %d\n",Index);
+    if (Index % 10000==0) pArgs->Log.verbose("Merged %d",Index);
 	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
 	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
 	// omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes+pAlignmentsSigs->size(), TypeMaxEnds+pAlignmentsSigs->size(), mut);

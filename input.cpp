@@ -1612,7 +1612,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 	for (int k=0;k<BamFileNames.size();++k)
 	{
 		const char * SampleFileName=BamFileNames[k];
-		fprintf(stderr,"Reading %s for region %s...\n",SampleFileName,TheContig.Name.c_str());
+		Args.Log.info("Reading %s for region %s...",SampleFileName,TheContig.Name.c_str());
 		Stats &SampleStats=AllStats[k];
 
 		string Region=TheContig.Name;
@@ -1640,7 +1640,8 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 		// }
 		if (DataSource!=0)
 		{
-			fprintf(stderr,"Deprecated function!\n");
+			Args.Log.error("Deprecated function!");
+			exit(100);
 			// HandleBrMutex mut;
 			// takePipeAndHandleBr(TheContig, SamFiles[k], Tech, SampleStats, AlignmentsSigs, TypeSignatures,AllPrimarySegments,CoverageWindows,&mut,Args,DSFile);
 		}
@@ -1725,14 +1726,17 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 
 	if (AlignmentsSigs.size()>0)
 	{
-		fprintf(stderr,"Size:%lu",AlignmentsSigs.size());
-		unsigned long DELN=0,INSN=0;
-		for (int i=0;i<AlignmentsSigs.size();++i)
+		Args.Log.verbose("Number of CIGAR sig alignments:%lu",AlignmentsSigs.size());
+		if (Args.Log.Verbosity>1)
 		{
-			DELN+=AlignmentsSigs[i].TypeSignatures[0].size();
-			INSN+=AlignmentsSigs[i].TypeSignatures[1].size();
+			unsigned long DELN=0,INSN=0;
+			for (int i=0;i<AlignmentsSigs.size();++i)
+			{
+				DELN+=AlignmentsSigs[i].TypeSignatures[0].size();
+				INSN+=AlignmentsSigs[i].TypeSignatures[1].size();
+			}
+			Args.Log.debug("Size:%lu, DELN:%lu, INSN:%lu",AlignmentsSigs.size(),DELN,INSN);
 		}
-		fprintf(stderr,", DELN:%lu, INSN:%lu\n",DELN,INSN);
 		// divideASs(AlignmentsSigs);
 		// fprintf(stderr,"After Divided Size:%lu",AlignmentsSigs.size());
 		// MergingMutex mut;
@@ -1784,7 +1788,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 					TypeMaxEnds[T][i]=max(TypeMaxEnds[T][i-1],AlignmentsSigs[TypeSigIndexes[T][i]].TypeEndMost[T]);
 				}
 			}
-			fprintf(stderr,"Start merging for %s...",TheContig.Name.c_str());
+			Args.Log.info("Start merging for %s...",TheContig.Name.c_str());
 			if (Args.ThreadN==1)
 			{
 				for (int i=0;i<AlignmentsSigs.size();++i)
@@ -1865,7 +1869,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				}
 			}
 		}
-		fprintf(stderr,"Done merging for %s...",TheContig.Name.c_str());
+		Args.Log.info("Done merging for %s...",TheContig.Name.c_str());
 	}
 	// fprintf(stderr,"Count:%lf, MeanLength:%lf\n",tcount,meanlength);
 	// fprintf(stderr,"DEL:%lu, INS:%lu, DUP:%lu, INV:%lu\n",TypeSignatures[TheContig.ID][0].size(),TypeSignatures[TheContig.ID][1].size(),TypeSignatures[TheContig.ID][2].size(),TypeSignatures[TheContig.ID][3].size());

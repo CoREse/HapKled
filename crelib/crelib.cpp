@@ -66,7 +66,7 @@ void cre::Logger::vlog(int Level, const char * Format, va_list argptr)
 	timeinfo = localtime (&(rawtime));
 
 	strftime (buffer,80,"%Y-%m-%d %H:%M:%S",timeinfo);
-	fprintf(LogFile, "%s.%d,%d",buffer,VTime.tv_usec/1000,VTime.tv_usec%1000);
+	fprintf(LogFile, "%s.%03d,%03d",buffer,VTime.tv_usec/1000,VTime.tv_usec%1000);
 	if (Level<2) fprintf(LogFile," [INFO] ");
 	else if (Level==2) fprintf(LogFile," [DEBUG] ");
 	else if (Level==3) fprintf(LogFile," [WARNING] ");

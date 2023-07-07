@@ -15,13 +15,16 @@
 #include <vector>
 #include <map>
 #include <string>
+#include "crelib/crelib.h"
 
 const int NumberOfSVTypes=4;//Default is static so is fine.
+const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.1.4";
+	const char * Version="1.2.0";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
+	cre::Logger Log;
 	std::string CommandLine;
 	std::string RunHash;//Storing std::hash<std::string>(Version+Arguments) in hex.
 	int TestN=0;
