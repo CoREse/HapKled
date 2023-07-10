@@ -212,6 +212,7 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	for (auto r: Records)
 	{
 		if (!r.Keep) continue;
+		// if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/2.0))) continue;
 		ContigOutputs[i][r.getSVTypeI()].push_back(r);
 		// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
 		// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
@@ -228,6 +229,24 @@ void* handleCallContigType(void* Args)
 	callContigType(A->Contigs, *A->AllStats, A->i, A->t, *A->TypeSignatures, *A->ContigsAllPrimarySegments, *A->CoverageWindowsPs, *A->ContigTotalCoverage, *A->ContigOutputs, *A->Args);
 	delete A;
 	return NULL;
+}
+
+void flagDupIns(vector<vector<VCFRecord>> &Outputs, double MinPSD=50, int Loose=0)
+{
+	#pragma omp parallel for
+	for (int i=0;i<Outputs[1].size();++i)
+	{
+		if (Outputs[1][i].getPSD()<MinPSD) continue;
+		for (int j=0;j<Outputs[2].size();++j)
+		{
+			// if (Outputs[1][i].Pos>=Outputs[2][j].Pos-Loose && Outputs[1][i].Pos+Outputs[1][i].getSVLen()<=Outputs[2][j].Pos+Outputs[2][j].getSVLen()+Loose)
+			if (Outputs[1][i].Pos>=Outputs[2][j].Pos-Loose && Outputs[1][i].Pos<=Outputs[2][j].Pos+Outputs[2][j].getSVLen()+Loose && Outputs[1][i].getSVLen()<=Outputs[2][j].getSVLen()+Loose)
+			{
+				Outputs[1][i].Keep=false;
+				break;
+			}
+		}
+	}
 }
 
 // #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
@@ -316,6 +335,8 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "InsMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[1]));
     OH.addOpt(0, "DupMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[2]));
     OH.addOpt(0, "InvMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[3]));
+    OH.addOpt(0, "PSTD", 0, "", "Always calculate Pos STD.",'b',&(Args.CalcPosSTD));
+    OH.addOpt(0, "FID", 0, "", "Filter out insertions within duplication range that have large PSTD when number of duplication/number of insertion is large(>1/20). Implicates --PSTD.",'b',&(Args.FID));
 	#ifdef DEBUG
     OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
 	string WriteSigDataFileName="";
@@ -377,6 +398,8 @@ int main(int argc, const char* argv[])
 			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCCSTypeLengthRatios2[i];
 		}
 	}
+
+	if (Args.FID) Args.CalcPosSTD=true;
 
 	omp_set_num_threads(Args.ThreadN);
 	// ThreadPool ThePool(8);
@@ -742,8 +765,14 @@ int main(int argc, const char* argv[])
 		Header.addSample(Args.SampleName.c_str());
 		printf(Header.genHeader(Args).c_str());
 	}
+	double DupInsRatio=0;
 	for (int i=0;i<NSeq;++i)
 	{
+		if (Args.FID)
+		{
+			DupInsRatio=(double)ContigOutputs[i][2].size()/(double)ContigOutputs[i][1].size();
+			if (DupInsRatio>1.0/20) flagDupIns(ContigOutputs[i],2.0/DupInsRatio);
+		}
 		for (int t=1;t<NumberOfSVTypes;++t)
 		{
 			if (ContigOutputs[i][t].size()!=0) ContigOutputs[i][0].insert(ContigOutputs[i][0].end(),make_move_iterator(ContigOutputs[i][t].begin()),make_move_iterator(ContigOutputs[i][t].end()));

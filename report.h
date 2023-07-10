@@ -54,6 +54,8 @@ class VCFRecord
     int MinLength;
     int MaxLength;
     int MediumLength;
+    double PSD;
+
     bool Precise;
     std::string InsConsensus;
     int SVTypeI;
@@ -75,6 +77,9 @@ class VCFRecord
     bool Keep;//keep this record
 
     int getSVTypeI() const;
+    int getPSD() const;
+    int getSVLen() const;
+    int getST() const;
 
     VCFRecord();
     VCFRecord(const Contig & TheContig, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);

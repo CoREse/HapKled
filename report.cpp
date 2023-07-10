@@ -65,6 +65,21 @@ int VCFRecord::getSVTypeI() const
     return SVTypeI;
 }
 
+int VCFRecord::getPSD() const
+{
+    return PSD;
+}
+
+int VCFRecord::getSVLen() const
+{
+    return SVLen;
+}
+
+int VCFRecord::getST() const
+{
+    return ST;
+}
+
 tuple<int,int> getConsensusSite(vector<Signature> &Signatures)
 {
     if (Signatures.size()==0) return tuple<int,int>(-1,-1);
@@ -698,7 +713,7 @@ VCFRecord::VCFRecord()
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
 {}
 VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
-: SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
+: SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
 {
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
@@ -762,10 +777,10 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     else if (ST2>30) Keep=true;
     else
     {
-        if (Args.MinPosSTD[SVTypeI]!=-1)
+        if (Args.CalcPosSTD || Args.MinPosSTD[SVTypeI]!=-1 || SVTypeI==1)
         {
-            double PSD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
-            if (PSD>Args.MinPosSTD[SVTypeI]) {Keep=false;return;}
+            PSD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+            if (Args.MinPosSTD[SVTypeI]!=-1 && PSD>Args.MinPosSTD[SVTypeI]) {Keep=false;return;}
         }
         double (*ASSBases)[2]=Args.ASSBases;
         double (*ASSCoverageMulti)[2]=Args.ASSCoverageMulti;
@@ -902,7 +917,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     free(TSeq);
     ++Pos;++End;//trans to 1-based
     if (INFO!="") INFO+=";";
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)+";PSTD="+to_string(PSD)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
 }
 
 VCFRecord::operator std::string() const
@@ -1001,6 +1016,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","CC","Average coverage of this contig.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","CR","Core ratio.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","M3L","(min length, medium length, max length).","3","Integer"));
+    Header.addHeaderEntry(HeaderEntry("INFO","PSTD","Position STD, -1 if not caclulated.","1","Float"));
     DEBUG_CODE(Header.addHeaderEntry(HeaderEntry("INFO","MSs","MergeStrings.","1","String"));)
     // Header.addHeaderEntry(HeaderEntry("INFO","CS","Nearby coverage for genotyping.(by windows)","1","Float"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
