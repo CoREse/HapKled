@@ -211,8 +211,8 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 
 	for (auto r: Records)
 	{
-		if (!r.Keep) continue;
-		// if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/2.0))) continue;
+		// if (!r.Keep) continue;
+		if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/6.0))) continue;
 		ContigOutputs[i][r.getSVTypeI()].push_back(r);
 		// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
 		// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
@@ -770,7 +770,10 @@ int main(int argc, const char* argv[])
 	{
 		if (Args.FID)
 		{
-			DupInsRatio=(double)ContigOutputs[i][2].size()/(double)ContigOutputs[i][1].size();
+			int DupCount=0;
+			for (int j=0;j<ContigOutputs[i][2].size();++j) if (ContigOutputs[i][2][j].Keep) ++DupCount;
+			DupInsRatio=(double)DupCount/(double)ContigOutputs[i][1].size();
+			// DupInsRatio=(double)ContigOutputs[i][2].size()/(double)ContigOutputs[i][1].size();
 			if (DupInsRatio>1.0/20) flagDupIns(ContigOutputs[i],2.0/DupInsRatio);
 		}
 		for (int t=1;t<NumberOfSVTypes;++t)
