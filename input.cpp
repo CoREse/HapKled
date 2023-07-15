@@ -1588,14 +1588,13 @@ struct ReduceCWArgs
 {
 	double * CoverageWindows;
 	int Begin;
-	int CoverageWindowsN;
+	int End;
 	unordered_map<pthread_t,double *> &ProcessCovW;
 };
 void * reduceCW(void * Args)
 {
 	ReduceCWArgs *A=(ReduceCWArgs*)Args;
-	int End=min(A->CoverageWindowsN,A->Begin+100);
-	for (unsigned long i=A->Begin;i<End;++i)
+	for (unsigned long i=A->Begin;i<A->End;++i)
 	{
 		for (int pi=0;pi<A->ProcessCovW.size();++pi)
 		A->CoverageWindows[i]+=A->ProcessCovW[(p.pool->t+pi)->tid][i];
@@ -1604,8 +1603,10 @@ void * reduceCW(void * Args)
 	return NULL;
 }
 
+// unsigned long long TotalReduceTime=0;
 void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource)
 {
+	// unsigned long long ReduceTime=0;
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
 	vector<AlignmentSigs> AlignmentsSigs;//All CIGAR sigs for this contig is here, so we can proceed them here.
@@ -1663,6 +1664,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				unordered_map<pthread_t,vector<vector<vector<Signature>>> > ProcessSigVec;
 				unordered_map<pthread_t,SegmentSet> ProcessSegS;
 				unordered_map<pthread_t,double *> ProcessCovW;
+				time_t StartR=getTimeInMuse();
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					ProcessASVec[(p.pool->t+pi)->tid]=vector<AlignmentSigs>();
@@ -1681,6 +1683,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 						}
 					}
 				}
+				// ReduceTime+=getTimeInMuse()-StartR;
 				hts_tpool_process *HandlebrProcess=hts_tpool_process_init(p.pool,p.qsize,1);
 				bam1_t *br=bam_init1();
 				hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
@@ -1692,6 +1695,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				}
 				bam_destroy1(br);
 				hts_tpool_process_flush(HandlebrProcess);
+				// StartR=getTimeInMuse();
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					AlignmentsSigs.insert(AlignmentsSigs.end(),make_move_iterator(ProcessASVec[(p.pool->t+pi)->tid].begin()),make_move_iterator(ProcessASVec[(p.pool->t+pi)->tid].end()));
@@ -1707,20 +1711,34 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 					// // #pragma omp parallel for
 					// for (unsigned long i=0;i<CoverageWindowsN;++i) CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
 				}
-				for (int i=0;i<CoverageWindowsN;i+=100)
+				if (CoverageWindowsN<=Args.SigReduceBlockSize*1.1)
 				{
-					ReduceCWArgs *A=new ReduceCWArgs{CoverageWindows,i,CoverageWindowsN,ProcessCovW};
-					hts_tpool_dispatch(p.pool,HandlebrProcess,reduceCW,(void *)A);
+					for (int i=0;i<CoverageWindowsN;++i)
+					{
+						for (int pi=0;pi<p.pool->tsize;++pi)
+						CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
+					}
 				}
-				hts_tpool_process_flush(HandlebrProcess);
+				else
+				{
+					for (unsigned long i=0;i<CoverageWindowsN;i+=Args.SigReduceBlockSize)
+					{
+						ReduceCWArgs *A=new ReduceCWArgs{CoverageWindows,i,min(CoverageWindowsN,i+Args.SigReduceBlockSize),ProcessCovW};
+						hts_tpool_dispatch(p.pool,HandlebrProcess,reduceCW,(void *)A);
+					}
+					hts_tpool_process_flush(HandlebrProcess);
+				}
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					free(ProcessCovW[(p.pool->t+pi)->tid]);
 					ProcessCovW[(p.pool->t+pi)->tid]=NULL;
 				}
 				hts_tpool_process_destroy(HandlebrProcess);
+				// ReduceTime+=getTimeInMuse()-StartR;
 			}
 		}
+		// TotalReduceTime+=ReduceTime;
+		// Args.Log.debug("Reduce time for %s is %lfs, total: %lfs.",TheContig.Name.c_str(),double(ReduceTime)/1000000.0,double(TotalReduceTime)/1000000.0);
 		// if (DataSource!=0 && strcmp(DataSource,"-")!=0) pclose(DSFile);
 	}
 

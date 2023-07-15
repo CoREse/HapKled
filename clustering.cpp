@@ -468,7 +468,8 @@ template<typename T> void brotherClusteringList(list<Brotherhood<T>> &Brotherhoo
 
 template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherhood<T>>& Brotherhoods, Stats BamStats, Arguments &Args)
 {
-    if (Args.ThreadN==1 || SortedTs.size()<=Args.ClusteringBatchSize*1.1)
+    //Need improve 1 thread efficiency for large size
+    if (/*Args.ThreadN==1 || */SortedTs.size()<=Args.ClusteringBatchSize*1.1)
     {
         for (T & S:SortedTs) Brotherhoods.push_back(Brotherhood<T>(S,Args.AllCCS));
         brotherClusteringList(Brotherhoods,Args);
@@ -481,7 +482,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             if (i%Args.ClusteringBatchSize==0) BatchBrotherhoods.push_back(list<Brotherhood<T>>());
             BatchBrotherhoods[BatchBrotherhoods.size()-1].push_back(Brotherhood<T>(SortedTs[i],Args.AllCCS));
         }
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (int i=0;i<BatchBrotherhoods.size();++i)
         {
             brotherClusteringList(BatchBrotherhoods[i],Args);
@@ -529,7 +530,7 @@ template<typename T> void brotherClustering(vector<T> & SortedTs, list<Brotherho
             Edges[Edges.size()-1].splice(Edges[Edges.size()-1].end(),BatchBrotherhoods[i+1],BatchBrotherhoods[i+1].begin(),RightIter);
             // Brotherhoods.insert(Brotherhoods.end(),make_move_iterator(BatchBrotherhoods[i].begin()),make_move_iterator(BatchBrotherhoods[i].end()));
         }
-        #pragma omp parallel for
+        // #pragma omp parallel for
         for (int i=0;i<Edges.size();++i)
         {
             brotherClusteringList(Edges[i],Args);

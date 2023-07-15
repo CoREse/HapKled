@@ -524,24 +524,27 @@ int main(int argc, const char* argv[])
 		Log.info("Clustering and filtering...");
 		if (Args.ThreadN>1)
 		{	
-			// extern htsThreadPool p;
-			// hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
-			#pragma omp parallel for
+			extern htsThreadPool p;
+			hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
+			// #pragma omp parallel for
 			for (int i=0;i<NSeq;++i)
+			// for (int it=0;it<NSeq*NumberOfSVTypes;++it)
 			{
-				if (! toCall(Contigs[i],Args))
-				{
-					continue;
-				}
+				// int i=it/NumberOfSVTypes;
+				// int t=it % NumberOfSVTypes;
 				for (int t=0;t<NumberOfSVTypes;++t)
 				{
-					// CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
-					// hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
-					callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
+					if (! toCall(Contigs[i],Args))
+					{
+						continue;
+					}
+					CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
+					hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
+					// callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);
 				}
 			}
-			// hts_tpool_process_flush(CallingProcess);
-			// hts_tpool_process_destroy(CallingProcess);
+			hts_tpool_process_flush(CallingProcess);
+			hts_tpool_process_destroy(CallingProcess);
 		}
 		else
 		for (int i=0;i<NSeq;++i)
