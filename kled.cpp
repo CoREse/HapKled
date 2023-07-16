@@ -194,7 +194,7 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	for (unsigned d=0;d<ContigTypeSignatures[t].size();++d) ContigTypeSignatures[t][d].setID(d);
 	clustering(t, Contigs[i].Name, ContigTypeSignatures[t],SignatureClusters,SignatureClusterCores,AllStats[i],Args);
 	
-	vector<VCFRecord> Records;
+	// vector<VCFRecord> Records;
 	// #pragma omp parallel for reduction(RecordVectorConc:Records)
 	for (int j=0;j<SignatureClusters.size();++j)
 	{
@@ -202,23 +202,33 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 		if (SignatureClusters[j].size()==0) continue;
 		ClusterCore Core;
 		if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
-		Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, ContigTotalCoverage[i], Args));
+		VCFRecord R=VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, ContigTotalCoverage[i], Args);
+		if (t==2)
+		{
+			ContigOutputs[i][t].push_back(R);
+		}
+		else
+		{
+			if (R.Keep) ContigOutputs[i][t].push_back(R);
+		}
+		// Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, ContigTotalCoverage[i], Args));
 	}
 	// updateTime("Results generation","Sorting results...");
-	sort(Records.data(),Records.data()+Records.size());
+	// sort(Records.data(),Records.data()+Records.size());
+	sort(ContigOutputs[i][t].data(),ContigOutputs[i][t].data()+ContigOutputs[i][t].size());
 	// Records.sort();
 	// updateTime("Results sorting","");
 
-	for (auto r: Records)
-	{
-		// if (!r.Keep) continue;
-		if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/6.0))) continue;
-		ContigOutputs[i][r.getSVTypeI()].push_back(r);
-		// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-		// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
-		// ++SVCounts[r.getSVTypeI()];
-		// // printf("\n%s",string(r).c_str());
-	}
+	// for (auto r: Records)
+	// {
+	// 	// if (!r.Keep) continue;
+	// 	if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/6.0))) continue;
+	// 	ContigOutputs[i][r.getSVTypeI()].push_back(r);
+	// 	// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+	// 	// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
+	// 	// ++SVCounts[r.getSVTypeI()];
+	// 	// // printf("\n%s",string(r).c_str());
+	// }
 	// free(CoverageWindowsSums);
 	// free(CheckPoints);
 }
@@ -530,14 +540,14 @@ int main(int argc, const char* argv[])
 			for (int i=0;i<NSeq;++i)
 			// for (int it=0;it<NSeq*NumberOfSVTypes;++it)
 			{
+				if (! toCall(Contigs[i],Args))
+				{
+					continue;
+				}
 				// int i=it/NumberOfSVTypes;
 				// int t=it % NumberOfSVTypes;
 				for (int t=0;t<NumberOfSVTypes;++t)
 				{
-					if (! toCall(Contigs[i],Args))
-					{
-						continue;
-					}
 					CallingContigTypeArgs *A=new CallingContigTypeArgs{Contigs, &AllStats, i, t, &TypeSignatures, &ContigsAllPrimarySegments, &CoverageWindowsPs, &ContigTotalCoverage, &ContigOutputs, &Args};
 					hts_tpool_dispatch(p.pool,CallingProcess,handleCallContigType,(void *)A);
 					// callContigType(Contigs, AllStats, i, t, TypeSignatures, ContigsAllPrimarySegments, CoverageWindowsPs, ContigTotalCoverage, ContigOutputs, Args);

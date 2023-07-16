@@ -21,7 +21,7 @@ const int NumberOfSVTypes=4;//Default is static so is fine.
 const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.2.3";
+	const char * Version="1.2.4";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	cre::Logger Log;
@@ -133,7 +133,7 @@ struct Arguments {
 	int MinPosSTD[NumberOfSVTypes]={-1,-1,-1,-1};//Filter out clusters that have position stds > MinPosSTD, -1: don't filter.
 	bool CalcPosSTD=false;
 	bool FID=true;
-	unsigned long SigReduceBlockSize=1000;
+	// unsigned long SigReduceBlockSize=1000;
 };
 
 #endif

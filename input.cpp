@@ -57,6 +57,15 @@ struct HandleBrMutex
 	}
 };
 
+struct CoverageWindowMutex
+{
+	pthread_mutex_t m_Cov;
+	CoverageWindowMutex()
+	{
+		pthread_mutex_init(&m_Cov,NULL);
+	}
+};
+
 int getTechFromReads(bam_hdr_t *Header, htsFile* SamFile)
 {
 	int CheckN=10;
@@ -633,7 +642,7 @@ inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & T
 		CoverageWindows[WEnd-1]+=LastPortion;
 	}
 }
-inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & TheContig, Arguments &Args)
+inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
 {
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<Args.MinMappingQuality) return;
@@ -644,16 +653,16 @@ inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & The
 	int WBegin=Begin/Args.CoverageWindowSize;
 	int WEnd=End/Args.CoverageWindowSize+1;
 	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
-	// pthread_mutex_lock(&Mut->m_Cov);
+	pthread_mutex_lock(&Mut->m_Cov);
 	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
 	CoverageWindows[WBegin]+=FirstPortion;
-	// pthread_mutex_unlock(&Mut->m_Cov);
+	pthread_mutex_unlock(&Mut->m_Cov);
 	if (WEnd>WBegin+1)
 	{
 		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
-		// pthread_mutex_lock(&Mut->m_Cov);
+		pthread_mutex_lock(&Mut->m_Cov);
 		CoverageWindows[WEnd-1]+=LastPortion;
-		// pthread_mutex_unlock(&Mut->m_Cov);
+		pthread_mutex_unlock(&Mut->m_Cov);
 	}
 }
 
@@ -696,7 +705,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// if (bam_cigar_op(bam_get_cigar(br)[br->core.n_cigar-1])==BAM_CSOFT_CLIP) qlenc-=bam_cigar_oplen(bam_get_cigar(br)[br->core.n_cigar-1]);
 	// printf("%d %d %d %d %d\n",AS,NM,qlenc,qlen,bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	// return;
-	if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig,Args);
+	// if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig,Args);
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
@@ -1357,13 +1366,14 @@ struct HandleBrArgs
 	unordered_map<pthread_t,vector<AlignmentSigs>> * pAlignmentsSigs;
 	unordered_map<pthread_t,vector<vector<vector<Signature>>>> *pTypeSignatures;
 	unordered_map<pthread_t,SegmentSet> *pAllPrimarySegments;
-	unordered_map<pthread_t,double*> *CoverageWindows;
+	double *CoverageWindows;
+	CoverageWindowMutex *mut;
 	// HandleBrMutex *mut;
 	Arguments * pArgs;
 };
 // double meanlength=0,tcount=0;
 
-void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, Arguments * pArgs)
+void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, CoverageWindowMutex *Mut, Arguments * pArgs)
 {
 	Contig & TheContig=*pTheContig;
 	Sam & SamFile=*pSamFile;
@@ -1428,6 +1438,7 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 			getDRPSignature(br, SampleStats, TheContig, *pTypeSignatures);
 		}
 	}
+	if (align_is_primary(br)) statCoverageCigar(br,CoverageWindows,TheContig,Mut,Args);
 	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindows, Args);
 }
 
@@ -1435,7 +1446,7 @@ void * handlebrWrapper(void * args)
 {
 	pthread_t tid=pthread_self();
 	HandleBrArgs * A=(HandleBrArgs*)args;
-	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, &(A->pAlignmentsSigs->at(tid)), &(A->pTypeSignatures->at(tid)), &(A->pAllPrimarySegments->at(tid)), A->CoverageWindows->at(tid), A->pArgs);
+	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, &(A->pAlignmentsSigs->at(tid)), &(A->pTypeSignatures->at(tid)), &(A->pAllPrimarySegments->at(tid)), A->CoverageWindows, A->mut, A->pArgs);
 	bam_destroy1(A->br);
 	delete A;
 	return NULL;
@@ -1610,6 +1621,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 	const char * ReferenceFileName=Args.ReferenceFileName;
 	const vector<const char *> & BamFileNames=Args.BamFileNames;
 	vector<AlignmentSigs> AlignmentsSigs;//All CIGAR sigs for this contig is here, so we can proceed them here.
+	CoverageWindowMutex CWMutex;
 	for (int k=0;k<BamFileNames.size();++k)
 	{
 		const char * SampleFileName=BamFileNames[k];
@@ -1654,7 +1666,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
-					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows, &Args);
+					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows, &CWMutex, &Args);
 				}
 				bam_destroy1(br);
 			}
@@ -1663,17 +1675,17 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				unordered_map<pthread_t,vector<AlignmentSigs>> ProcessASVec;
 				unordered_map<pthread_t,vector<vector<vector<Signature>>> > ProcessSigVec;
 				unordered_map<pthread_t,SegmentSet> ProcessSegS;
-				unordered_map<pthread_t,double *> ProcessCovW;
+				// unordered_map<pthread_t,double *> ProcessCovW;
 				time_t StartR=getTimeInMuse();
 				for (int pi=0;pi<p.pool->tsize;++pi)
 				{
 					ProcessASVec[(p.pool->t+pi)->tid]=vector<AlignmentSigs>();
 					ProcessSigVec[(p.pool->t+pi)->tid]=vector<vector<vector<Signature>>>();
 					ProcessSegS[(p.pool->t+pi)->tid]=SegmentSet();
-					double * PCW=(double *)malloc(sizeof(double)*CoverageWindowsN);
-					assert(ProcessCovW[(p.pool->t+pi)->tid]==NULL);
-					for (unsigned long i=0;i<CoverageWindowsN;++i) PCW[i]=0;
-					ProcessCovW[(p.pool->t+pi)->tid]=PCW;
+					// double * PCW=(double *)malloc(sizeof(double)*CoverageWindowsN);
+					// assert(ProcessCovW[(p.pool->t+pi)->tid]==NULL);
+					// for (unsigned long i=0;i<CoverageWindowsN;++i) PCW[i]=0;
+					// ProcessCovW[(p.pool->t+pi)->tid]=PCW;
 					for (int i=0;i<TypeSignatures.size();++i)
 					{
 						ProcessSigVec[(p.pool->t+pi)->tid].push_back(vector<vector<Signature>>());
@@ -1690,7 +1702,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
 					bam1_t *cbr=bam_dup1(br);
-					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &ProcessASVec, &ProcessSigVec, &ProcessSegS, &ProcessCovW, &Args};
+					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &ProcessASVec, &ProcessSigVec, &ProcessSegS, CoverageWindows, &CWMutex, &Args};
 					hts_tpool_dispatch(p.pool,HandlebrProcess,handlebrWrapper,(void *)A);
 				}
 				bam_destroy1(br);
@@ -1711,28 +1723,28 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 					// // #pragma omp parallel for
 					// for (unsigned long i=0;i<CoverageWindowsN;++i) CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
 				}
-				if (CoverageWindowsN<=Args.SigReduceBlockSize*1.1)
-				{
-					for (int i=0;i<CoverageWindowsN;++i)
-					{
-						for (int pi=0;pi<p.pool->tsize;++pi)
-						CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
-					}
-				}
-				else
-				{
-					for (unsigned long i=0;i<CoverageWindowsN;i+=Args.SigReduceBlockSize)
-					{
-						ReduceCWArgs *A=new ReduceCWArgs{CoverageWindows,i,min(CoverageWindowsN,i+Args.SigReduceBlockSize),ProcessCovW};
-						hts_tpool_dispatch(p.pool,HandlebrProcess,reduceCW,(void *)A);
-					}
-					hts_tpool_process_flush(HandlebrProcess);
-				}
-				for (int pi=0;pi<p.pool->tsize;++pi)
-				{
-					free(ProcessCovW[(p.pool->t+pi)->tid]);
-					ProcessCovW[(p.pool->t+pi)->tid]=NULL;
-				}
+				// if (CoverageWindowsN<=Args.SigReduceBlockSize*1.1)
+				// {
+				// 	for (int i=0;i<CoverageWindowsN;++i)
+				// 	{
+				// 		for (int pi=0;pi<p.pool->tsize;++pi)
+				// 		CoverageWindows[i]+=ProcessCovW[(p.pool->t+pi)->tid][i];
+				// 	}
+				// }
+				// else
+				// {
+				// 	for (unsigned long i=0;i<CoverageWindowsN;i+=Args.SigReduceBlockSize)
+				// 	{
+				// 		ReduceCWArgs *A=new ReduceCWArgs{CoverageWindows,i,min(CoverageWindowsN,i+Args.SigReduceBlockSize),ProcessCovW};
+				// 		hts_tpool_dispatch(p.pool,HandlebrProcess,reduceCW,(void *)A);
+				// 	}
+				// 	hts_tpool_process_flush(HandlebrProcess);
+				// }
+				// for (int pi=0;pi<p.pool->tsize;++pi)
+				// {
+				// 	free(ProcessCovW[(p.pool->t+pi)->tid]);
+				// 	ProcessCovW[(p.pool->t+pi)->tid]=NULL;
+				// }
 				hts_tpool_process_destroy(HandlebrProcess);
 				// ReduceTime+=getTimeInMuse()-StartR;
 			}
