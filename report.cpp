@@ -547,7 +547,8 @@ string VCFRecord::genotype(const Contig & TheContig, SegmentSet & AllPrimarySegm
     // double ErrorRate=0.5;//Error rate of support/deny wrongly seqed/mapped to deny/support.
     // double EAF=0.5;//Estimated Allele Frequencey.
     CV=All;
-    if (double(ST)/All<HomoThreshold) Sample["GT"]="0/1";
+    if (All==0) Sample["GT"]="1/1";
+    else if (double(ST)/All<HomoThreshold) Sample["GT"]="0/1";
     else Sample["GT"]="1/1";
     return Sample["GT"];
     // if (All<=ST) return "1/1";

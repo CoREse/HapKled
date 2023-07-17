@@ -21,7 +21,7 @@ const int NumberOfSVTypes=4;//Default is static so is fine.
 const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.2.4";
+	const char * Version="1.2.5";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	cre::Logger Log;

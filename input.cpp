@@ -627,19 +627,23 @@ void searchInvFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
-inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & TheContig, Arguments &Args)
+inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
 {
 	if (End>=TheContig.Size) End=TheContig.Size-1;
 	if (End<=Begin) return;
 	int WBegin=Begin/Args.CoverageWindowSize;
 	int WEnd=End/Args.CoverageWindowSize+1;
+	pthread_mutex_lock(&Mut->m_Cov);
 	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
 	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
 	CoverageWindows[WBegin]+=FirstPortion;
+	pthread_mutex_unlock(&Mut->m_Cov);
 	if (WEnd>WBegin+1)
 	{
+		pthread_mutex_lock(&Mut->m_Cov);
 		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
 		CoverageWindows[WEnd-1]+=LastPortion;
+		pthread_mutex_unlock(&Mut->m_Cov);
 	}
 }
 inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
@@ -648,22 +652,23 @@ inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & The
 	if (br->core.qual<Args.MinMappingQuality) return;
 	int Begin=br->core.pos;
 	int End=Begin+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
-	if (End>=TheContig.Size) End=TheContig.Size-1;
-	if (End<=Begin) return;
-	int WBegin=Begin/Args.CoverageWindowSize;
-	int WEnd=End/Args.CoverageWindowSize+1;
-	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
-	pthread_mutex_lock(&Mut->m_Cov);
-	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
-	CoverageWindows[WBegin]+=FirstPortion;
-	pthread_mutex_unlock(&Mut->m_Cov);
-	if (WEnd>WBegin+1)
-	{
-		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
-		pthread_mutex_lock(&Mut->m_Cov);
-		CoverageWindows[WEnd-1]+=LastPortion;
-		pthread_mutex_unlock(&Mut->m_Cov);
-	}
+	statCoverage(Begin,End, CoverageWindows, TheContig, Mut, Args);
+	// if (End>=TheContig.Size) End=TheContig.Size-1;
+	// if (End<=Begin) return;
+	// int WBegin=Begin/Args.CoverageWindowSize;
+	// int WEnd=End/Args.CoverageWindowSize+1;
+	// double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
+	// pthread_mutex_lock(&Mut->m_Cov);
+	// for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
+	// CoverageWindows[WBegin]+=FirstPortion;
+	// pthread_mutex_unlock(&Mut->m_Cov);
+	// if (WEnd>WBegin+1)
+	// {
+	// 	double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
+	// 	pthread_mutex_lock(&Mut->m_Cov);
+	// 	CoverageWindows[WEnd-1]+=LastPortion;
+	// 	pthread_mutex_unlock(&Mut->m_Cov);
+	// }
 }
 
 void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
@@ -694,7 +699,7 @@ void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, double *CoverageWindows,Arguments & Args)
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, double *CoverageWindows, CoverageWindowMutex *Mut, Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	// int AS=bam_aux2i(bam_aux_get(br,"AS"));
@@ -705,7 +710,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// if (bam_cigar_op(bam_get_cigar(br)[br->core.n_cigar-1])==BAM_CSOFT_CLIP) qlenc-=bam_cigar_oplen(bam_get_cigar(br)[br->core.n_cigar-1]);
 	// printf("%d %d %d %d %d\n",AS,NM,qlenc,qlen,bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	// return;
-	// if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig,Args);
+	if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig, Mut, Args);
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
@@ -757,6 +762,11 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 		}
 		k+=1;
 	}
+	for (int i=1;i<Aligns.size();++i)
+	{
+		statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Mut, Args);//Still no other contigs.
+		// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
+	}
 	sort(Aligns.data(),Aligns.data()+Aligns.size());
 	// dealClipConflicts(Aligns,Args);//Careful use. Good for ont but not for sims.
 	// pthread_mutex_lock(&Mut->m_Sig[1]);
@@ -769,11 +779,6 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// // for (int i=0;i<Aligns.size();++i) printf(" %d,%d,%d",Aligns[i].Strand,Aligns[i].ForwardPos,Aligns[i].ForwardEnd);
 	// printf("\n");
 	// pthread_mutex_unlock(&Mut->m_Sig[1]);
-	// for (int i=0;i<Aligns.size();++i)
-	// {
-	// 	statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Args);//Still no other contigs.
-	// 	// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
-	// }
 	searchDelFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
 	searchDupFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
@@ -1438,8 +1443,8 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 			getDRPSignature(br, SampleStats, TheContig, *pTypeSignatures);
 		}
 	}
-	if (align_is_primary(br)) statCoverageCigar(br,CoverageWindows,TheContig,Mut,Args);
-	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindows, Args);
+	// if (align_is_primary(br)) statCoverageCigar(br,CoverageWindows,TheContig,Mut,Args);
+	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindows, Mut, Args);
 }
 
 void * handlebrWrapper(void * args)
