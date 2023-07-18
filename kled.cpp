@@ -134,7 +134,7 @@ bool toCall(const Contig & C, const Arguments &Args)
 	return true;
 }
 
-void preClustering(Contig *Contigs, vector<double> & ContigWholeCoverage, vector<double> & ContigTotalCoverage, int i, vector<unsigned> & ContigBeforeProcessedLength, double * CoverageWindows, Arguments & Args)
+void preClustering(Contig *Contigs, vector<double> & ContigWholeCoverage, vector<double> & ContigTotalCoverage, int i, vector<unsigned> & ContigBeforeProcessedLength, float * CoverageWindows, Arguments & Args)
 {
 	// WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
 	ContigWholeCoverage[i]=getAverageCoverage(0,Contigs[i].Size,CoverageWindows,Args);
@@ -150,18 +150,18 @@ struct CallingContigTypeArgs
 	int t;
 	vector<vector<vector<Signature>>> *TypeSignatures;
 	vector<SegmentSet> *ContigsAllPrimarySegments;
-	vector<double*> *CoverageWindowsPs;
+	vector<float*> *CoverageWindowsPs;
 	vector<double> *ContigTotalCoverage;
 	vector<vector<vector<VCFRecord>>> *ContigOutputs;
 	Arguments * Args;
 };
 
-void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vector<vector<vector<Signature>>> &TypeSignatures, vector<SegmentSet> &ContigsAllPrimarySegments, vector<double*> &CoverageWindowsPs, vector<double> ContigTotalCoverage, vector<vector<vector<VCFRecord>>> &ContigOutputs, Arguments & Args)
+void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vector<vector<vector<Signature>>> &TypeSignatures, vector<SegmentSet> &ContigsAllPrimarySegments, vector<float*> &CoverageWindowsPs, vector<double> ContigTotalCoverage, vector<vector<vector<VCFRecord>>> &ContigOutputs, Arguments & Args)
 {
 	unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 	unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
 
-	double *CoverageWindows=CoverageWindowsPs[i];
+	float *CoverageWindows=CoverageWindowsPs[i];
 	SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
 	vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
 	#ifdef DEBUG
@@ -448,7 +448,7 @@ int main(int argc, const char* argv[])
 
 	vector<vector<vector<Signature>>> TypeSignatures;//Contig-Type-Signatures
 	vector<SegmentSet> ContigsAllPrimarySegments;
-	vector<double *> CoverageWindowsPs;
+	vector<float *> CoverageWindowsPs;
 	for (int i=0;i<NSeq;++i)
 	{
 		TypeSignatures.push_back(vector<vector<Signature>>());
@@ -499,7 +499,7 @@ int main(int argc, const char* argv[])
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
 			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
-			double *CoverageWindows=new double[NumberOfCoverageWindows];
+			float *CoverageWindows=new float[NumberOfCoverageWindows];
 			#ifdef DEBUG
 			if (ReadSigDataFileName!="")
 			{
@@ -591,14 +591,14 @@ int main(int argc, const char* argv[])
 			Log.info("Reading alignments...");
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
-			double *CoverageWindows=new double[NumberOfCoverageWindows];
+			float *CoverageWindows=new float[NumberOfCoverageWindows];
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
 			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
 			AllPrimarySegments.sortNStat();
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 			CoverageWindowsPs.push_back(CoverageWindows);
 
-			// double *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
+			// float *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
 			// SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[ContigIndex[i]];
 			vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
 			#ifdef DEBUG
@@ -625,11 +625,11 @@ int main(int argc, const char* argv[])
 			}
 			#endif
 			// fprintf(stderr,"%u\n",Contigs[i].Size-1);
-			double *CoverageWindowsSums=NULL;//=(double*) malloc(sizeof(double)*(int)(NumberOfCoverageWindows+1));
+			float *CoverageWindowsSums=NULL;//=(float*) malloc(sizeof(float)*(int)(NumberOfCoverageWindows+1));
 			CoverageWindows[0]=0;
 			// CoverageWindowsSums[0]=0;
 			int CheckPointInterval=10000;
-			double *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
+			float *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
 			// CheckPoints[0]=0;
 			// for (int i=1;i<NumberOfCoverageWindows+1;++i)
 			// {

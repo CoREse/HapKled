@@ -627,7 +627,7 @@ void searchInvFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
-inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
+inline void statCoverage(int Begin, int End, float *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
 {
 	if (End>=TheContig.Size) End=TheContig.Size-1;
 	if (End<=Begin) return;
@@ -646,7 +646,7 @@ inline void statCoverage(int Begin, int End, double *CoverageWindows, Contig & T
 		pthread_mutex_unlock(&Mut->m_Cov);
 	}
 }
-inline void statCoverageCigar(bam1_t * br, double *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
+inline void statCoverageCigar(bam1_t * br, float *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
 {
 	// printf("%s %d %d\n", bam_get_qname(br),br->core.pos, br->core.pos+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	if (br->core.qual<Args.MinMappingQuality) return;
@@ -699,7 +699,7 @@ void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, double *CoverageWindows, CoverageWindowMutex *Mut, Arguments & Args)
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, float *CoverageWindows, CoverageWindowMutex *Mut, Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	// int AS=bam_aux2i(bam_aux_get(br,"AS"));
@@ -1371,14 +1371,14 @@ struct HandleBrArgs
 	unordered_map<pthread_t,vector<AlignmentSigs>> * pAlignmentsSigs;
 	unordered_map<pthread_t,vector<vector<vector<Signature>>>> *pTypeSignatures;
 	unordered_map<pthread_t,SegmentSet> *pAllPrimarySegments;
-	double *CoverageWindows;
+	float *CoverageWindows;
 	CoverageWindowMutex *mut;
 	// HandleBrMutex *mut;
 	Arguments * pArgs;
 };
 // double meanlength=0,tcount=0;
 
-void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, double* CoverageWindows, CoverageWindowMutex *Mut, Arguments * pArgs)
+void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, float* CoverageWindows, CoverageWindowMutex *Mut, Arguments * pArgs)
 {
 	Contig & TheContig=*pTheContig;
 	Sam & SamFile=*pSamFile;
@@ -1620,7 +1620,7 @@ void * reduceCW(void * Args)
 }
 
 // unsigned long long TotalReduceTime=0;
-void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, double* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource)
+void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, float* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource)
 {
 	// unsigned long long ReduceTime=0;
 	const char * ReferenceFileName=Args.ReferenceFileName;

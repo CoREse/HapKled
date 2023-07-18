@@ -82,9 +82,9 @@ class VCFRecord
     int getST() const;
 
     VCFRecord();
-    VCFRecord(const Contig & TheContig, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments &Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
+    VCFRecord(const Contig & TheContig, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments &Args, float* CoverageWindowsSums=NULL, float* CheckPoints=NULL, int CheckPointInterval=0);
     void resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, double CC, Arguments & Args);
-    std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args);
+    std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, float * CoverageWindows, float *CoverageWindowsSums, float* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
     void calcM3L(std::vector<Signature> & SignatureCluster);
@@ -92,6 +92,6 @@ class VCFRecord
 
 void addKledEntries(VCFHeader & Header);
 
-double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums=NULL, double* CheckPoints=NULL, int CheckPointInterval=0);
+double getAverageCoverage(int Begin, int End, float * CoverageWindows, Arguments & Args, float* CoverageWindowsSums=NULL, float* CheckPoints=NULL, int CheckPointInterval=0);
 
 #endif

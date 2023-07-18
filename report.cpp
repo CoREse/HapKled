@@ -340,7 +340,7 @@ int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen, double 
     // return MAX(0.0,100.0-(LengthSD/(double)SVLen*500.0-SizePenalty));
 }
 
-double getAverageCoverage(int Begin, int End, double * CoverageWindows, Arguments & Args, double* CoverageWindowsSums, double* CheckPoints, int CheckPointInterval)
+double getAverageCoverage(int Begin, int End, float * CoverageWindows, Arguments & Args, float* CoverageWindowsSums, float* CheckPoints, int CheckPointInterval)
 {
     if (End<=Begin) return -1;
     double Cov=0;
@@ -376,7 +376,7 @@ double getAverageCoverage(int Begin, int End, double * CoverageWindows, Argument
     {
         for (int i=WBegin;i<WEnd;++i) 
         {
-            Cov*=((double)(i-WBegin))/(i-WBegin+1);//in case too big
+            Cov*=((float)(i-WBegin))/(i-WBegin+1);//in case too big
             Cov+=CoverageWindows[i]*1/(i-WBegin+1);
         }
     }
@@ -522,7 +522,7 @@ int getNAllTemplates(const Contig & TheContig, SegmentSet & AllPrimarySegments, 
     return Result;
 }
 
-string VCFRecord::genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, double * CoverageWindows, double *CoverageWindowsSums, double* Checkpoints, int CheckPointInterval, Arguments & Args)
+string VCFRecord::genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, float * CoverageWindows, float *CoverageWindowsSums, float* Checkpoints, int CheckPointInterval, Arguments & Args)
 {
     double HomoThreshold=0.8;
     int Scope=0;
@@ -713,7 +713,7 @@ int VN=0;
 VCFRecord::VCFRecord()
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
 {}
-VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, double* CoverageWindows, double WholeCoverage, Arguments& Args, double * CoverageWindowsSums, double * CheckPoints, int CheckPointInterval)
+VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
 {
     assert(SignatureCluster.size()>=0);
