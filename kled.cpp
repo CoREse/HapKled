@@ -57,8 +57,9 @@ vector<string> split(string line, string delimiter=" ")
     return items;
 }
 
-bool analyzeCustomParas(Arguments & Args)
+void * analyzeCustomParas(void * pArgs)
 {
+	Arguments & Args= *((Arguments*)pArgs);
 	for (int i=0;i<NumberOfSVTypes;++i)
 	{
 		if (Args.CustomClusterParas[i]!="")
@@ -67,7 +68,9 @@ bool analyzeCustomParas(Arguments & Args)
 			if (sl.size()!=4 && sl.size()!=7 && sl.size()!=5)
 			{
 				Args.Log.error("Wrong parameter format %s.", Args.CustomClusterParas[i].c_str());
-				return false;
+				Args.OH->showhelp();
+				exit(1);
+				return NULL;
 			}
 			if (sl[0][0]!='*')
 			Args.BrotherhoodTypeForceBrothers[i]=atoi(sl[0].c_str());
@@ -97,7 +100,9 @@ bool analyzeCustomParas(Arguments & Args)
 			if (sl.size()!=6)
 			{
 				Args.Log.error("Wrong parameter format %s.",Args.CustomFilterParas[i].c_str());
-				return false;
+				Args.OH->showhelp();
+				exit(1);
+				return NULL;
 			}
 			if (sl[0][0]!='*')
 			Args.ASSBases[i][0]=atof(sl[0].c_str());
@@ -113,7 +118,7 @@ bool analyzeCustomParas(Arguments & Args)
 			Args.LSDRSs[i][1]=atof(sl[5].c_str());
 		}
 	}
-	return true;
+	return NULL;
 }
 
 bool toCall(const Contig & C, const Arguments &Args)
@@ -262,6 +267,44 @@ void flagDupIns(vector<vector<VCFRecord>> &Outputs, double MinPSD=50, int Loose=
 // #pragma omp declare reduction(RecordVectorConc: vector<VCFRecord>: omp_out.insert(omp_out.end(),make_move_iterator(omp_in.begin()),make_move_iterator(omp_in.end())))
 //#pragma omp declare reduction(RecordListConc: list<VCFRecord>: omp_out.splice(omp_out.end(),omp_in))
 
+void * updateCLRParas(void *pArgs)
+{
+	Arguments & Args=*((Arguments*)pArgs);
+	if (Args.AllCLR)
+	{
+		for (int i=0;i<NumberOfSVTypes;++i)
+		{
+			Args.BrotherhoodTypeRatios[i]=				Args.BrotherhoodCLRTypeRatios[i];
+			Args.BrotherhoodTypeForceBrothers[i]=		Args.BrotherhoodCLRTypeForceBrothers[i];
+			Args.BrotherhoodTypeLengthRatios[i]=		Args.BrotherhoodCLRTypeLengthRatios[i];
+			Args.BrotherhoodTypeLengthMinEndurance[i]=	Args.BrotherhoodCLRTypeLengthMinEndurance[i];
+			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCLRNearRanges[i];
+			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCLRTypeForceBrothers2[i];
+			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCLRTypeLengthRatios2[i];
+		}
+	}
+	return NULL;
+}
+	
+void * updateCCSParas(void *pArgs)
+{
+	Arguments & Args=*((Arguments*)pArgs);
+	if (Args.AllCCS)
+	{
+		for (int i=0;i<NumberOfSVTypes;++i)
+		{
+			Args.BrotherhoodTypeRatios[i]=				Args.BrotherhoodCCSTypeRatios[i];
+			Args.BrotherhoodTypeForceBrothers[i]=		Args.BrotherhoodCCSTypeForceBrothers[i];
+			Args.BrotherhoodTypeLengthRatios[i]=		Args.BrotherhoodCCSTypeLengthRatios[i];
+			Args.BrotherhoodTypeLengthMinEndurance[i]=	Args.BrotherhoodCCSTypeLengthMinEndurance[i];
+			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCCSNearRanges[i];
+			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCCSTypeForceBrothers2[i];
+			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCCSTypeLengthRatios2[i];
+		}
+	}
+	return NULL;
+}
+
 Arguments Args;
 int main(int argc, const char* argv[])
 {
@@ -284,9 +327,9 @@ int main(int argc, const char* argv[])
     OH.addOpt('h', "help", 0, "", "Show this help and exit.",'b',&(Args.ShowHelp));
     OH.addOpt('v', "version", 0, "", "Show version and exit.",'b',&(Args.ShowVersion));
     OH.addOpt(0, "BC", 0, "", "Calling contig by contig, cost less memory.",'b',&(Args.CallByContig));
-    OH.addOpt(0, "CCS", 0, "", "Use default parameters for CCS data (will overwrite cluster and filter parameters).",'b',&(Args.AllCCS));
-    OH.addOpt(0, "CLR", 0, "", "Use default parameters for CLR data (will overwrite cluster and filter parameters).",'b',&(Args.AllCLR));
-    OH.addOpt(0, "DelClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for deletions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[0]));
+    OH.addOpt(0, "CCS", 0, "", "Use default parameters for CCS data (will overwrite previous cluster and filter parameters).",'b',&(Args.AllCCS),false,updateCCSParas,(void*)&Args);
+    OH.addOpt(0, "CLR", 0, "", "Use default parameters for CLR data (will overwrite previous cluster and filter parameters).",'b',&(Args.AllCLR),false,updateCLRParas,(void*)&Args);
+    OH.addOpt(0, "DelClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for deletions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[0]),false,analyzeCustomParas,(void*)&Args);
 		OH.addOpt(0, "DelClusterFixed", 1, "FixedDistance", "Fixed distance clustering parameter for deletions.",'i',&(Args.BrotherhoodTypeForceBrothers[0]));
 		OH.addOpt(0, "DelClusterRatio", 1, "DistanceRatio", "Distance ratio clustering parameter for deletions.",'F',&(Args.BrotherhoodTypeRatios[0]));
 		OH.addOpt(0, "DelClusterMinLengthEdurance", 1, "MinLengthEndurance", "Min length endurance clustering parameter for deletions.",'i',&(Args.BrotherhoodTypeLengthMinEndurance[0]));
@@ -294,7 +337,7 @@ int main(int argc, const char* argv[])
 		OH.addOpt(0, "DelClusterNearRange", 1, "NearRange", "Near range clustering parameter for deletions.",'i',&(Args.BrotherhoodNearRanges[0]));
 		OH.addOpt(0, "DelClusterFixed2", 1, "FixedDistance", "Fixed distance 2 clustering parameter for deletions.",'i',&(Args.BrotherhoodTypeForceBrothers2[0]));
 		OH.addOpt(0, "DelClusterLengthRatio2", 1, "LenthRatio", "Length ratio 2 clustering parameter for deletions.",'F',&(Args.BrotherhoodTypeLengthRatios2[0]));
-    OH.addOpt(0, "InsClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for insertions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[1]));
+    OH.addOpt(0, "InsClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for insertions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[1]),false,analyzeCustomParas,(void*)&Args);
     	OH.addOpt(0, "InsClusterFixed", 1, "FixedDistance", "Fixed distance clustering parameter for insertions.",'i',&(Args.BrotherhoodTypeForceBrothers[1]));
 		OH.addOpt(0, "InsClusterRatio", 1, "DistanceRatio", "Distance ratio clustering parameter for insertions.",'F',&(Args.BrotherhoodTypeRatios[1]));
 		OH.addOpt(0, "InsClusterMinLengthEdurance", 1, "MinLengthEndurance", "Min length endurance clustering parameter for insertions.",'i',&(Args.BrotherhoodTypeLengthMinEndurance[1]));
@@ -302,7 +345,7 @@ int main(int argc, const char* argv[])
 		OH.addOpt(0, "InsClusterNearRange", 1, "NearRange", "Near range clustering parameter for insertions.",'i',&(Args.BrotherhoodNearRanges[1]));
 		OH.addOpt(0, "InsClusterFixed2", 1, "FixedDistance", "Fixed distance 2 clustering parameter for insertions.",'i',&(Args.BrotherhoodTypeForceBrothers2[1]));
 		OH.addOpt(0, "InsClusterLengthRatio2", 1, "LenthRatio", "Length ratio 2 clustering parameter for insertions.",'F',&(Args.BrotherhoodTypeLengthRatios2[1]));
-	OH.addOpt(0, "DupClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for duplications, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[2]));
+	OH.addOpt(0, "DupClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for duplications, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[2]),false,analyzeCustomParas,(void*)&Args);
     	OH.addOpt(0, "DupClusterFixed", 1, "FixedDistance", "Fixed distance clustering parameter for duplications.",'i',&(Args.BrotherhoodTypeForceBrothers[2]));
 		OH.addOpt(0, "DupClusterRatio", 1, "DistanceRatio", "Distance ratio clustering parameter for duplications.",'F',&(Args.BrotherhoodTypeRatios[2]));
 		OH.addOpt(0, "DupClusterMinLengthEdurance", 1, "MinLengthEndurance", "Min length endurance clustering parameter for duplications.",'i',&(Args.BrotherhoodTypeLengthMinEndurance[2]));
@@ -310,7 +353,7 @@ int main(int argc, const char* argv[])
 		OH.addOpt(0, "DupClusterNearRange", 1, "NearRange", "Near range clustering parameter for duplications.",'i',&(Args.BrotherhoodNearRanges[2]));
 		OH.addOpt(0, "DupClusterFixed2", 1, "FixedDistance", "Fixed distance 2 clustering parameter for duplications.",'i',&(Args.BrotherhoodTypeForceBrothers2[2]));
 		OH.addOpt(0, "DupClusterLengthRatio2", 1, "LenthRatio", "Length ratio 2 clustering parameter for duplications.",'F',&(Args.BrotherhoodTypeLengthRatios2[2]));
-	OH.addOpt(0, "InvClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for inversions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[3]));
+	OH.addOpt(0, "InvClusterParas", 1, "Fixed,Ratio,MinLengthEndurance,LengthRatio[,NearRange,LengthDiff,LengthRatio2]", "Custom clustering parameters for inversions, if later 3 not given or NearRange=-1 use single layer clustering. Value * for defaults.",'S',&(Args.CustomClusterParas[3]),false,analyzeCustomParas,(void*)&Args);
     	OH.addOpt(0, "InvClusterFixed", 1, "FixedDistance", "Fixed distance clustering parameter for inversions.",'i',&(Args.BrotherhoodTypeForceBrothers[3]));
 		OH.addOpt(0, "InvClusterRatio", 1, "DistanceRatio", "Distance ratio clustering parameter for inversions.",'F',&(Args.BrotherhoodTypeRatios[3]));
 		OH.addOpt(0, "InvClusterMinLengthEdurance", 1, "MinLengthEndurance", "Min length endurance clustering parameter for inversions.",'i',&(Args.BrotherhoodTypeLengthMinEndurance[3]));
@@ -318,10 +361,10 @@ int main(int argc, const char* argv[])
 		OH.addOpt(0, "InvClusterNearRange", 1, "NearRange", "Near range clustering parameter for inversions.",'i',&(Args.BrotherhoodNearRanges[3]));
 		OH.addOpt(0, "InvClusterFixed2", 1, "FixedDistance", "Fixed distance 2 clustering parameter for inversions.",'i',&(Args.BrotherhoodTypeForceBrothers2[3]));
 		OH.addOpt(0, "InvClusterLengthRatio2", 1, "LenthRatio", "Length ratio 2 clustering parameter for inversions.",'F',&(Args.BrotherhoodTypeLengthRatios2[3]));
-	OH.addOpt(0, "DelFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for deletions. Value * for defaults.",'S',&(Args.CustomFilterParas[0]));
-    OH.addOpt(0, "InsFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for insertions. Value * for defaults.",'S',&(Args.CustomFilterParas[1]));
-    OH.addOpt(0, "DupFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for duplications. Value * for defaults.",'S',&(Args.CustomFilterParas[2]));
-    OH.addOpt(0, "InvFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for inversions. Value * for defaults.",'S',&(Args.CustomFilterParas[3]));
+	OH.addOpt(0, "DelFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for deletions. Value * for defaults.",'S',&(Args.CustomFilterParas[0]),false,analyzeCustomParas,(void*)&Args);
+    OH.addOpt(0, "InsFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for insertions. Value * for defaults.",'S',&(Args.CustomFilterParas[1]),false,analyzeCustomParas,(void*)&Args);
+    OH.addOpt(0, "DupFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for duplications. Value * for defaults.",'S',&(Args.CustomFilterParas[2]),false,analyzeCustomParas,(void*)&Args);
+    OH.addOpt(0, "InvFilterParas", 1, "Base1,Ratio1,SDScore1,Base2,Ratio2,SDScore2", "Custom filter parameters for inversions. Value * for defaults.",'S',&(Args.CustomFilterParas[3]),false,analyzeCustomParas,(void*)&Args);
     OH.addOpt(0, "NOF", 0, "", "No filter, output all results.",'b',&(Args.NoFilter));
     OH.addOpt(0, "F2", 0, "", "Output all results with ST>=2.",'b',&(Args.Filter2ST));
     OH.addOpt('m', 0, 1, "SVLEN", "Minimum SV length.",'i',&(Args.MinSVLen));
@@ -354,6 +397,7 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "WS", 1, "Data file name", "File name to write signature data",'S',&(WriteSigDataFileName));
     OH.addOpt(0, "RS", 1, "Data file name", "File name to read signature data",'S',&(ReadSigDataFileName));
 	#endif
+	Args.OH=&OH;
     OH.getOpts(argc,argv);
 
 	if (Args.ShowHelp)
@@ -374,39 +418,6 @@ int main(int argc, const char* argv[])
 	{
 		OH.showhelp();
 		exit(1);
-	}
-	
-	if (!analyzeCustomParas(Args))
-	{
-		OH.showhelp();
-		exit(1);
-	}
-
-	if (Args.AllCLR)
-	{
-		for (int i=0;i<NumberOfSVTypes;++i)
-		{
-			Args.BrotherhoodTypeRatios[i]=				Args.BrotherhoodCLRTypeRatios[i];
-			Args.BrotherhoodTypeForceBrothers[i]=		Args.BrotherhoodCLRTypeForceBrothers[i];
-			Args.BrotherhoodTypeLengthRatios[i]=		Args.BrotherhoodCLRTypeLengthRatios[i];
-			Args.BrotherhoodTypeLengthMinEndurance[i]=	Args.BrotherhoodCLRTypeLengthMinEndurance[i];
-			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCLRNearRanges[i];
-			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCLRTypeForceBrothers2[i];
-			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCLRTypeLengthRatios2[i];
-		}
-	}
-	else if (Args.AllCCS)
-	{
-		for (int i=0;i<NumberOfSVTypes;++i)
-		{
-			Args.BrotherhoodTypeRatios[i]=				Args.BrotherhoodCCSTypeRatios[i];
-			Args.BrotherhoodTypeForceBrothers[i]=		Args.BrotherhoodCCSTypeForceBrothers[i];
-			Args.BrotherhoodTypeLengthRatios[i]=		Args.BrotherhoodCCSTypeLengthRatios[i];
-			Args.BrotherhoodTypeLengthMinEndurance[i]=	Args.BrotherhoodCCSTypeLengthMinEndurance[i];
-			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCCSNearRanges[i];
-			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCCSTypeForceBrothers2[i];
-			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCCSTypeLengthRatios2[i];
-		}
 	}
 
 	if (Args.FID) Args.CalcPosSTD=true;
@@ -449,6 +460,7 @@ int main(int argc, const char* argv[])
 	vector<vector<vector<Signature>>> TypeSignatures;//Contig-Type-Signatures
 	vector<SegmentSet> ContigsAllPrimarySegments;
 	vector<float *> CoverageWindowsPs;
+	vector<unsigned long> CoverageWindowsNs;
 	for (int i=0;i<NSeq;++i)
 	{
 		TypeSignatures.push_back(vector<vector<Signature>>());
@@ -493,13 +505,23 @@ int main(int argc, const char* argv[])
 			{
 				ContigsAllPrimarySegments.push_back(SegmentSet());
 				CoverageWindowsPs.push_back(NULL);
+				CoverageWindowsNs.push_back(0);
 				continue;
 			}
-			SegmentSet AllPrimarySegments;
+			ContigsAllPrimarySegments.push_back(SegmentSet());
+			unsigned long NumberOfCoverageWindows=Contigs[i].Size/Args.CoverageWindowSize+1;
+			CoverageWindowsNs.push_back(NumberOfCoverageWindows);
+			float *CoverageWindows=new float[NumberOfCoverageWindows];
+			CoverageWindowsPs.push_back(CoverageWindows);
+			for (int k=0;k<NumberOfCoverageWindows;++k) CoverageWindows[k]=0;
+		}
+		for (int i=0;i<NSeq;++i)
+		{
+			if (! toCall(Contigs[i],Args)) continue;
+			SegmentSet& AllPrimarySegments=ContigsAllPrimarySegments[i];
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			unsigned int CoverageWindowSize=Args.CoverageWindowSize;
-			unsigned int NumberOfCoverageWindows=Contigs[i].Size/CoverageWindowSize+1;
-			float *CoverageWindows=new float[NumberOfCoverageWindows];
+			// unsigned int NumberOfCoverageWindows=CoverageWindowsNs[i];
 			#ifdef DEBUG
 			if (ReadSigDataFileName!="")
 			{
@@ -514,14 +536,12 @@ int main(int argc, const char* argv[])
 			else
 			{
 			#endif
-			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
-			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,NumberOfCoverageWindows,0);
+			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindowsPs,CoverageWindowsNs,0);
 			AllPrimarySegments.sortNStat();
 			#ifdef DEBUG
 			}
 			#endif
-			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
-			CoverageWindowsPs.push_back(CoverageWindows);
+			// ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 		}
 		for (int i=0;i<NSeq;++i)
 		{
@@ -582,6 +602,8 @@ int main(int argc, const char* argv[])
 		{
 			if (! toCall(Contigs[i],Args))
 			{
+				CoverageWindowsPs.push_back(NULL);
+				CoverageWindowsNs.push_back(0);
 				// ++Skipped;
 				continue;
 			}
@@ -592,11 +614,11 @@ int main(int argc, const char* argv[])
 			SegmentSet AllPrimarySegments;
 			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			float *CoverageWindows=new float[NumberOfCoverageWindows];
+			CoverageWindowsPs.push_back(CoverageWindows);
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
-			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindows,0);
+			collectSignatures(Contigs[i],TypeSignatures,AllPrimarySegments,Args,SamFiles,AllStats,AllTechs,CoverageWindowsPs,CoverageWindowsNs,0);
 			AllPrimarySegments.sortNStat();
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
-			CoverageWindowsPs.push_back(CoverageWindows);
 
 			// float *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
 			// SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[ContigIndex[i]];

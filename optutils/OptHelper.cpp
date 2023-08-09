@@ -7,8 +7,8 @@
 #include <string>
 using namespace std;
 
-OptEntry::OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi)//data should be allocated pointer with correct data type
-    :ShortOpt(short_opt),LongOpt(long_opt),NeedArg(need_arg),ArgName(arg_name),HelpDescription(help_description),DataType(data_type),Data(data),DefaultData(Data), Multi(multi){
+OptEntry::OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi, void*(*funAfter)(void *), void * funArgs)//data should be allocated pointer with correct data type
+    :ShortOpt(short_opt),LongOpt(long_opt),NeedArg(need_arg),ArgName(arg_name),HelpDescription(help_description),DataType(data_type),Data(data),DefaultData(Data), Multi(multi), funAfter(funAfter), funArgs(funArgs){
         DefaultValue="";
         if (data==NULL) return;
         if (data_type=='s')
@@ -39,9 +39,9 @@ OptEntry::OptEntry(char short_opt, const char * long_opt, int need_arg, const ch
         }
     }
 
-void OptHelper::addOpt(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi)//data should be allocated pointer with correct data type
+void OptHelper::addOpt(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi, void*(*funAfter)(void *), void * funArgs)//data should be allocated pointer with correct data type
 {
-    Opts.push_back(OptEntry(short_opt, long_opt, need_arg, arg_name, help_description, data_type, data, multi));
+    Opts.push_back(OptEntry(short_opt, long_opt, need_arg, arg_name, help_description, data_type, data, multi, funAfter, funArgs));
 }
 
 char * get_short_opts(const vector<OptEntry> &options)
@@ -193,6 +193,7 @@ int OptHelper::getOpts(int argc, const char ** argv)
                 }
             }
         }
+        if (Opts[Index].funAfter!=NULL) Opts[Index].funAfter(Opts[Index].funArgs);
     }
     if (shortopt<0)
     {

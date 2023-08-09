@@ -17,7 +17,9 @@ struct OptEntry
     void * DefaultData;//if NULL then don't init the Data;
     bool Multi;
     std::string DefaultValue;
-    OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi=false);//data should be allocated pointer with correct data type
+    void * (*funAfter) (void *);
+    void * funArgs;
+    OptEntry(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi=false, void *(*funAfter)(void *)=NULL, void* funArgs=NULL);//data should be allocated pointer with correct data type
 };
 
 class OptHelper
@@ -32,7 +34,7 @@ class OptHelper
     data and defaultdata should be allocated pointer with correct data type, recommend to initialize data outside then pass it to both data and default data
     if multi is true, then data should be a pointer to std::vector of the right type, so OptHelper can store options occurred multiple times. if not set multi, will overide the option time by time
     */
-    void addOpt(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi=false);
+    void addOpt(char short_opt, const char * long_opt, int need_arg, const char * arg_name, const char * help_description, char data_type, void * data, bool multi=false, void *(*funAfter)(void *)=NULL, void* funArgs=NULL);
     int getOpts(int argc, const char ** argv);
     void setUsage(const char * Usage);
     void showhelp(FILE* File=stderr);

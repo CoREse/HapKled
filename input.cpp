@@ -265,8 +265,9 @@ struct Alignment
 	}
 	bool operator<(const Alignment &other) const
 	{
-		if (this->Cid==other.Cid) return this->ForwardPos<other.ForwardPos;
-		return this->Cid<other.Cid;
+		return this->ForwardPos<other.ForwardPos;
+		// if (this->Cid==other.Cid) return this->ForwardPos<other.ForwardPos;//TODO: a mistake, should not take cid into consideration?
+		// return this->Cid<other.Cid;
 		// return this->InnerPos<other.InnerPos;
 	}
 	double getQuality()
@@ -363,201 +364,6 @@ void searchInsFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
-bool conformDup(int S1, int E1, int S2, int E2, double Threshold=0.3)//from svim
-{
-	// return false;
-	int L1=E1-S1, L2=E2-S2;
-	double LengthRatio=double(abs(L1-L2))/(double(max(L1,L2)));
-	double PositionRatio=abs(double(E1+S1)/2.0-double(E2+S2)/2.0)/900.0;
-	if (LengthRatio + PositionRatio<Threshold) return true;
-	// if (LengthRatio<Threshold && PositionRatio<Threshold) return true;
-	return false;
-}
-
-void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, Arguments & Args)
-{
-	// #define OLD
-	#ifndef OLD
-	int CurrentStart=-1, CurrentEnd=-1, CurrentN=0, CurrentCid=-1, CurrentStrand=-1;
-	double CurrentQuality=0;
-	bool Covered=false;
-	for (int i=0;i<Aligns.size()-1;++i)
-	{
-		for (int j=i+1;j<Aligns.size();++j)
-		{
-			if (j>i+1) break;
-			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
-			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
-			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
-			// vector<Segment> v;
-			int FormerI=i, LatterI=j;
-			if (Aligns[i].Strand==0)
-			{
-				FormerI=j;
-				LatterI=i;
-			}
-			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
-			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
-			{
-				int DupEnd=Aligns[FormerI].End+InnerGap;
-				int DupLength=DupEnd-Aligns[LatterI].Pos;
-				if (DupLength>=Args.MinSVLen)// && DupLength<100000)
-				{
-					if (CurrentStart==-1)
-					{
-						CurrentStart=Aligns[LatterI].Pos;
-						CurrentEnd=DupEnd;
-						CurrentN=1;
-						Covered=false;
-						CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
-						if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
-						CurrentCid=Aligns[FormerI].Cid;
-						CurrentStrand=Aligns[FormerI].Strand;
-					}
-					else
-					{
-						if (CurrentCid==Aligns[FormerI].Cid && CurrentStrand==Aligns[FormerI].Strand && conformDup(CurrentStart,CurrentEnd, Aligns[LatterI].Pos, DupEnd))
-						{
-							CurrentStart=((double)CurrentStart)*(double(CurrentN)/(double(CurrentN+1)))+((double)Aligns[LatterI].Pos)*(1.0/(double(CurrentN+1)));
-							CurrentEnd=((double)CurrentEnd)*(double(CurrentN)/(double(CurrentN+1)))+((double)DupEnd)*(1.0/(double(CurrentN+1)));
-							CurrentQuality=((double)CurrentQuality)*(double(CurrentN)/(double(CurrentN+1)))+0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality())*(1.0/(double(CurrentN+1)));
-							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
-							++CurrentN;
-						}
-						else
-						{
-							if (CurrentEnd-CurrentStart>Args.MinSVLen)
-							{
-								Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
-								TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
-								TempSignature.Covered=Covered;
-								// pthread_mutex_lock(&Mut->m_Sig[2]);
-								TypeSignatures[CurrentCid][2].push_back(TempSignature);
-								// pthread_mutex_unlock(&Mut->m_Sig[2]);
-							}
-							CurrentStart=Aligns[LatterI].Pos;
-							CurrentEnd=DupEnd;
-							CurrentN=1;
-							Covered=false;
-							CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
-							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
-							CurrentCid=Aligns[FormerI].Cid;
-							CurrentStrand=Aligns[FormerI].Strand;
-						}
-					}
-				}
-				break;
-				// //   |=========>|
-				// //|===>
-				// if (DupLength>Aligns[LatterI].Length)
-				// {
-				// 	Dup=1;
-				// }
-				// //   |====>/
-				// // /============>
-				// else if (DupLength>Aligns[FormerI].Length)
-				// {
-				// 	Dup=1;
-				// }
-				// //   |====>/
-				// // /=====>
-				// else
-				// {
-				// 	if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
-				// 	{
-				// 		Dup=1;
-				// 	}
-				// }
-				// if (Dup)
-				// {
-				// 	double Quality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
-				// 	// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
-				// 	// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
-				// 	Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End+InnerGap,bam_get_qname(br),Quality);
-				// 	pthread_mutex_lock(&Mut->m_Sig[2]);
-				// 	TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
-				// 	pthread_mutex_unlock(&Mut->m_Sig[2]);
-				// }
-			}
-			// break;
-			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
-		}
-		// break;
-	}
-	if (CurrentStart!=-1)
-	{
-		if (CurrentEnd-CurrentStart>=Args.MinSVLen)
-		{
-			Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
-			TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
-			TempSignature.Covered=Covered;
-			// pthread_mutex_lock(&Mut->m_Sig[2]);
-			TypeSignatures[CurrentCid][2].push_back(TempSignature);
-			// pthread_mutex_unlock(&Mut->m_Sig[2]);
-		}
-	}
-	#endif
-	#ifdef OLD
-	//Break at first sig.
-	for (int i=0;i<Aligns.size()-1;++i)
-	{
-		for (int j=i+1;j<Aligns.size();++j)
-		{
-			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
-			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
-			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
-			// vector<Segment> v;
-			int FormerI=i, LatterI=j;
-			if (Aligns[i].Strand==0)
-			{
-				FormerI=j;
-				LatterI=i;
-			}
-			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
-			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
-			{
-				int DupLength=Aligns[FormerI].End+InnerGap-Aligns[LatterI].Pos;
-				int Dup=0;
-				if (DupLength>=Args.MinSVLen) Dup=1;
-				// //   |=========>|
-				// //|===>
-				// if (DupLength>Aligns[LatterI].Length)
-				// {
-				// 	Dup=1;
-				// }
-				// //   |====>/
-				// // /============>
-				// else if (DupLength>Aligns[FormerI].Length)
-				// {
-				// 	Dup=1;
-				// }
-				// //   |====>/
-				// // /=====>
-				// else
-				// {
-				// 	if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
-				// 	{
-				// 		Dup=1;
-				// 	}
-				// }
-				if (Dup)
-				{
-					double Quality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
-					// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
-					// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
-					Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End+InnerGap,bam_get_qname(br),Quality);
-					pthread_mutex_lock(&Mut->m_Sig[2]);
-					TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
-					pthread_mutex_unlock(&Mut->m_Sig[2]);
-				}
-			}
-			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
-		}
-		break;
-	}
-	#endif
-}
-
 bool continuous(const Alignment& Former, const Alignment& Latter, unsigned Endurance)
 {
 	// return true;
@@ -627,22 +433,35 @@ void searchInvFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns,
 	}
 }
 
-inline void statCoverage(int Begin, int End, float *CoverageWindows, Contig & TheContig, CoverageWindowMutex *Mut, Arguments &Args)
+inline void statCoverage(int Begin, int End, float *CoverageWindows, unsigned long ContigSize, CoverageWindowMutex *Mut, Arguments &Args, float Value=1.0)
 {
-	if (End>=TheContig.Size) End=TheContig.Size-1;
+	if (CoverageWindows==NULL) return;
+	if (End> ContigSize) End=ContigSize-1;
 	if (End<=Begin) return;
 	int WBegin=Begin/Args.CoverageWindowSize;
 	int WEnd=End/Args.CoverageWindowSize+1;
-	pthread_mutex_lock(&Mut->m_Cov);
-	for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=1;
 	double FirstPortion=((double)(((WBegin+1)*Args.CoverageWindowSize)-Begin))/((double)Args.CoverageWindowSize);
-	CoverageWindows[WBegin]+=FirstPortion;
-	pthread_mutex_unlock(&Mut->m_Cov);
-	if (WEnd>WBegin+1)
+	if (Value>=0)
 	{
 		pthread_mutex_lock(&Mut->m_Cov);
+		for (int i=WBegin+1;i<WEnd-1;++i) CoverageWindows[i]+=Value;
+		CoverageWindows[WBegin]+=FirstPortion*Value;
+		pthread_mutex_unlock(&Mut->m_Cov);
+	}
+	else
+	{
+		pthread_mutex_lock(&Mut->m_Cov);
+		for (int i=WBegin+1;i<WEnd-1;++i) {CoverageWindows[i]+=Value;if (CoverageWindows[i]<0) CoverageWindows[i]=0;}
+		CoverageWindows[WBegin]+=FirstPortion*Value;
+		if (CoverageWindows[WBegin]<0) CoverageWindows[WBegin]=0;
+		pthread_mutex_unlock(&Mut->m_Cov);
+	}
+	if (WEnd>WBegin+1)
+	{
 		double LastPortion=((double)(End+1-(WEnd-1)*Args.CoverageWindowSize))/((double)Args.CoverageWindowSize);
-		CoverageWindows[WEnd-1]+=LastPortion;
+		pthread_mutex_lock(&Mut->m_Cov);
+		CoverageWindows[WEnd-1]+=LastPortion*Value;
+		if (CoverageWindows[WEnd-1]<0) CoverageWindows[WEnd-1]=0;
 		pthread_mutex_unlock(&Mut->m_Cov);
 	}
 }
@@ -652,7 +471,7 @@ inline void statCoverageCigar(bam1_t * br, float *CoverageWindows, Contig & TheC
 	if (br->core.qual<Args.MinMappingQuality) return;
 	int Begin=br->core.pos;
 	int End=Begin+bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br));
-	statCoverage(Begin,End, CoverageWindows, TheContig, Mut, Args);
+	statCoverage(Begin,End, CoverageWindows, TheContig.Size, Mut, Args);
 	// if (End>=TheContig.Size) End=TheContig.Size-1;
 	// if (End<=Begin) return;
 	// int WBegin=Begin/Args.CoverageWindowSize;
@@ -669,6 +488,227 @@ inline void statCoverageCigar(bam1_t * br, float *CoverageWindows, Contig & TheC
 	// 	CoverageWindows[WEnd-1]+=LastPortion;
 	// 	pthread_mutex_unlock(&Mut->m_Cov);
 	// }
+}
+//May need Skip the first one(primary alignment)
+inline void statCoverageAligns(vector<Alignment> &Aligns, vector<float *> &CoverageWindowsPs, vector<unsigned long> &CoverageWindowsNs, int Skip, CoverageWindowMutex *Mut, Arguments &Args)
+{
+	if (Aligns.size()==0) return;
+	sort(Aligns.data()+Skip,Aligns.data()+Aligns.size(),
+	[](Alignment &a, Alignment &b){
+		if (a.Cid==b.Cid) return a.Pos<b.Pos;
+		return a.Cid<b.Cid;});
+	int Cid=Aligns[Skip].Cid,Begin=Aligns[Skip].Pos,End=Aligns[Skip].End;
+	for (int i=Skip+1;i<Aligns.size();++i)
+	{
+		if (Aligns[i].Cid==Cid && Aligns[i].Pos<=End)
+		{
+			End=Aligns[i].End;
+		}
+		else
+		{
+			statCoverage(Begin,End, CoverageWindowsPs[Cid], CoverageWindowsNs[Cid], Mut, Args);
+			Cid=Aligns[i].Cid;
+			Begin=Aligns[i].Pos;
+			End=Aligns[i].End;
+		}
+	}
+	statCoverage(Begin,End, CoverageWindowsPs[Cid], CoverageWindowsNs[Cid], Mut, Args);
+}
+bool conformDup(int S1, int E1, int S2, int E2, double Threshold=0.3)//from svim
+{
+	// return false;
+	int L1=E1-S1, L2=E2-S2;
+	double LengthRatio=double(abs(L1-L2))/(double(max(L1,L2)));
+	double PositionRatio=abs(double(E1+S1)/2.0-double(E2+S2)/2.0)/900.0;
+	if (LengthRatio + PositionRatio<Threshold) return true;
+	// if (LengthRatio<Threshold && PositionRatio<Threshold) return true;
+	return false;
+}
+
+void searchDupFromAligns(bam1_t *br,Contig& TheContig,vector<Alignment> &Aligns, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, vector<float*> &CoverageWindowsPs, vector<unsigned long> &CoverageWindowsNs, CoverageWindowMutex *Mut, Arguments & Args)
+{
+	// #define OLD
+	#ifndef OLD
+	int CurrentStart=-1, CurrentEnd=-1, CurrentN=0, CurrentCid=-1, CurrentStrand=-1;
+	double CurrentQuality=0;
+	bool Covered=false;
+	for (int i=0;i<Aligns.size()-1;++i)
+	{
+		for (int j=i+1;j<Aligns.size();++j)
+		{
+			if (j>i+1) break;
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
+			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
+			// vector<Segment> v;
+			int FormerI=i, LatterI=j;
+			if (Aligns[i].Strand==0)
+			{
+				FormerI=j;
+				LatterI=i;
+			}
+			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
+			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
+			{
+				int DupEnd=Aligns[FormerI].End+InnerGap;
+				int DupLength=DupEnd-Aligns[LatterI].Pos;
+				if (DupLength>=Args.MinSVLen)// && DupLength<100000)
+				{
+					if (CurrentStart==-1)
+					{
+						CurrentStart=Aligns[LatterI].Pos;
+						CurrentEnd=DupEnd;
+						CurrentN=2;
+						Covered=false;
+						CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+						if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+						CurrentCid=Aligns[FormerI].Cid;
+						CurrentStrand=Aligns[FormerI].Strand;
+					}
+					else
+					{
+						if (CurrentCid==Aligns[FormerI].Cid && CurrentStrand==Aligns[FormerI].Strand && conformDup(CurrentStart,CurrentEnd, Aligns[LatterI].Pos, DupEnd))
+						{
+							CurrentStart=((double)CurrentStart)*(double(CurrentN)/(double(CurrentN+1)))+((double)Aligns[LatterI].Pos)*(1.0/(double(CurrentN+1)));
+							CurrentEnd=((double)CurrentEnd)*(double(CurrentN)/(double(CurrentN+1)))+((double)DupEnd)*(1.0/(double(CurrentN+1)));
+							CurrentQuality=((double)CurrentQuality)*(double(CurrentN)/(double(CurrentN+1)))+0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality())*(1.0/(double(CurrentN+1)));
+							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+							++CurrentN;
+						}
+						else
+						{
+							if (CurrentEnd-CurrentStart>Args.MinSVLen)
+							{
+								Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
+								TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+								TempSignature.Covered=Covered;
+								// statCoverage(CurrentStart,CurrentEnd,CoverageWindowsPs[CurrentCid],CoverageWindowsNs[CurrentCid],Mut,Args,-1);
+								// pthread_mutex_lock(&Mut->m_Sig[2]);
+								TypeSignatures[CurrentCid][2].push_back(TempSignature);
+								// pthread_mutex_unlock(&Mut->m_Sig[2]);
+							}
+							CurrentStart=Aligns[LatterI].Pos;
+							CurrentEnd=DupEnd;
+							CurrentN=1;
+							Covered=false;
+							CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
+							CurrentCid=Aligns[FormerI].Cid;
+							CurrentStrand=Aligns[FormerI].Strand;
+						}
+					}
+				}
+				break;
+				// //   |=========>|
+				// //|===>
+				// if (DupLength>Aligns[LatterI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /============>
+				// else if (DupLength>Aligns[FormerI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /=====>
+				// else
+				// {
+				// 	if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
+				// 	{
+				// 		Dup=1;
+				// 	}
+				// }
+				// if (Dup)
+				// {
+				// 	double Quality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+				// 	// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
+				// 	// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
+				// 	Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End+InnerGap,bam_get_qname(br),Quality);
+				// 	pthread_mutex_lock(&Mut->m_Sig[2]);
+				// 	TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
+				// 	pthread_mutex_unlock(&Mut->m_Sig[2]);
+				// }
+			}
+			// break;
+			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
+		}
+		// break;
+	}
+	if (CurrentStart!=-1)
+	{
+		if (CurrentEnd-CurrentStart>=Args.MinSVLen)
+		{
+			Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
+			TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+			TempSignature.Covered=Covered;
+			// statCoverage(CurrentStart,CurrentEnd,CoverageWindowsPs[CurrentCid],CoverageWindowsNs[CurrentCid],Mut,Args,-1);
+			// pthread_mutex_lock(&Mut->m_Sig[2]);
+			TypeSignatures[CurrentCid][2].push_back(TempSignature);
+			// pthread_mutex_unlock(&Mut->m_Sig[2]);
+		}
+	}
+	#endif
+	#ifdef OLD
+	//Break at first sig.
+	for (int i=0;i<Aligns.size()-1;++i)
+	{
+		for (int j=i+1;j<Aligns.size();++j)
+		{
+			if (Aligns[i].Cid!=Aligns[j].Cid) continue;
+			if (Aligns[i].Strand!=Aligns[j].Strand) continue;
+			if (abs(Aligns[i].Pos-Aligns[j].Pos)>1000000) continue;
+			// vector<Segment> v;
+			int FormerI=i, LatterI=j;
+			if (Aligns[i].Strand==0)
+			{
+				FormerI=j;
+				LatterI=i;
+			}
+			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
+			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
+			{
+				int DupLength=Aligns[FormerI].End+InnerGap-Aligns[LatterI].Pos;
+				int Dup=0;
+				if (DupLength>=Args.MinSVLen) Dup=1;
+				// //   |=========>|
+				// //|===>
+				// if (DupLength>Aligns[LatterI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /============>
+				// else if (DupLength>Aligns[FormerI].Length)
+				// {
+				// 	Dup=1;
+				// }
+				// //   |====>/
+				// // /=====>
+				// else
+				// {
+				// 	if (Aligns[FormerI].End-Aligns[LatterI].Pos>=Args.MinSVLen)
+				// 	{
+				// 		Dup=1;
+				// 	}
+				// }
+				if (Dup)
+				{
+					double Quality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
+					// v.push_back(Segment(Aligns[i-1].Pos,Aligns[i-1].End));
+					// v.push_back(Segment(Aligns[i].Pos,Aligns[i].End));
+					Signature TempSignature(2,Tech,2,Aligns[LatterI].Pos,Aligns[FormerI].End+InnerGap,bam_get_qname(br),Quality);
+					pthread_mutex_lock(&Mut->m_Sig[2]);
+					TypeSignatures[Aligns[FormerI].Cid][2].push_back(TempSignature);
+					pthread_mutex_unlock(&Mut->m_Sig[2]);
+				}
+			}
+			//if (Aligns[i-1].End<Aligns[i].Pos && Aligns[i].Pos-Aligns[i-1].End-(Aligns[i].InnerPos-Aligns[i-1].InnerEnd)>=50) Signatures.push_back(Signature(2,Tech,2,Aligns[i-1].End,Aligns[i].Pos,bam_get_qname(br),br->core.qual));
+		}
+		break;
+	}
+	#endif
 }
 
 void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
@@ -699,7 +739,7 @@ void dealClipConflicts(vector<Alignment> &Aligns, Arguments & Args)
 	}
 }
 
-void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, float *CoverageWindows, CoverageWindowMutex *Mut, Arguments & Args)
+void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int Tech, vector<vector<vector<Signature>>> &TypeSignatures, vector<float *>&CoverageWindowsPs, vector<unsigned long> &CoverageWindowsNs, CoverageWindowMutex *Mut, Arguments & Args)
 {
 	if (!align_is_primary(br)) return;
 	// int AS=bam_aux2i(bam_aux_get(br,"AS"));
@@ -710,7 +750,7 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// if (bam_cigar_op(bam_get_cigar(br)[br->core.n_cigar-1])==BAM_CSOFT_CLIP) qlenc-=bam_cigar_oplen(bam_get_cigar(br)[br->core.n_cigar-1]);
 	// printf("%d %d %d %d %d\n",AS,NM,qlenc,qlen,bam_cigar2rlen(br->core.n_cigar,bam_get_cigar(br)));
 	// return;
-	if (Tech==0) statCoverageCigar(br,CoverageWindows,TheContig, Mut, Args);
+	if (Tech==0) statCoverageCigar(br,CoverageWindowsPs[TheContig.ID],TheContig, Mut, Args);
 	vector<Alignment> Aligns;
 	char* SA_tag_char = bam_get_string_tag(br, "SA");
 	if(SA_tag_char == NULL)
@@ -764,9 +804,13 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	}
 	for (int i=1;i<Aligns.size();++i)
 	{
-		statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Mut, Args);//Still no other contigs.
+		// statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindows, TheContig, Mut, Args);//Still no other contigs.
+		// statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindowsPs[TheContig.ID], TheContig.Size, Mut, Args);//Still no other contigs.
+		if (Aligns[i].Cid==TheContig.ID) statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindowsPs[TheContig.ID], TheContig.Size, Mut, Args);//Still no other contigs.
+		// statCoverage(Aligns[i].Pos, Aligns[i].End, CoverageWindowsPs[Aligns[i].Cid], CoverageWindowsNs[Aligns[i].Cid], Mut, Args);//Still no other contigs.
 		// getDelFromCigar(Aligns[i].CIGAR.data(), Aligns[i].CIGAR.size(),Aligns[i].Pos, bam_get_qname(br), Tech, TypeSignatures[0], Args);
 	}
+	// statCoverageAligns(Aligns, CoverageWindowsPs, TheContig, 1, Mut, Args);
 	sort(Aligns.data(),Aligns.data()+Aligns.size());
 	// dealClipConflicts(Aligns,Args);//Careful use. Good for ont but not for sims.
 	// pthread_mutex_lock(&Mut->m_Sig[1]);
@@ -781,12 +825,12 @@ void searchForClipSignatures(bam1_t *br, Contig & TheContig, Sam &SamFile, int T
 	// pthread_mutex_unlock(&Mut->m_Sig[1]);
 	searchDelFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
 	searchInsFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
-	searchDupFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
+	searchDupFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, CoverageWindowsPs, CoverageWindowsNs, Mut, Args);
 	searchInvFromAligns(br,TheContig,Aligns,Tech,TypeSignatures, Args);
 }
 
 //This kind of signature should - some normal isize when calc svlen
-void getDRPSignature(bam1_t * br, Stats& SampleStats, Contig& TheContig, vector<vector<vector<Signature>>> &TypeSignatures)
+void getDRPSignature(bam1_t * br, const Stats& SampleStats, Contig& TheContig, vector<vector<vector<Signature>>> &TypeSignatures)
 {
 	// const char * qname=bam_get_qname(br);
 	// if (strcmp(qname, "HISEQ1:93:H2YHMBCXX:2:1112:15493:51859")==0)
@@ -1367,22 +1411,23 @@ struct HandleBrArgs
 	Contig *pTheContig;
 	Sam *pSamFile;
 	int Tech;
-	Stats *pSampleStats;
+	const Stats *pSampleStats;
 	unordered_map<pthread_t,vector<AlignmentSigs>> * pAlignmentsSigs;
 	unordered_map<pthread_t,vector<vector<vector<Signature>>>> *pTypeSignatures;
 	unordered_map<pthread_t,SegmentSet> *pAllPrimarySegments;
-	float *CoverageWindows;
+	vector<float *> *pCoverageWindowsPs;
+	vector<unsigned long>* pCoverageWindowsNs;
 	CoverageWindowMutex *mut;
 	// HandleBrMutex *mut;
 	Arguments * pArgs;
 };
 // double meanlength=0,tcount=0;
 
-void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, float* CoverageWindows, CoverageWindowMutex *Mut, Arguments * pArgs)
+void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, const Stats *pSampleStats, vector<AlignmentSigs> *pAlignmentsSigs, vector<vector<vector<Signature>>> *pTypeSignatures, SegmentSet * pAllPrimarySegments, vector<float*> &CoverageWindowsPs, vector<unsigned long> &CoverageWindowsNs, CoverageWindowMutex *Mut, Arguments * pArgs)
 {
 	Contig & TheContig=*pTheContig;
 	Sam & SamFile=*pSamFile;
-	Stats & SampleStats=*pSampleStats;
+	const Stats & SampleStats=*pSampleStats;
 	SegmentSet & AllPrimarySegments=*pAllPrimarySegments;
 	Arguments & Args=*pArgs;
 	if (align_is_primary(br))
@@ -1444,14 +1489,14 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, Stats *p
 		}
 	}
 	// if (align_is_primary(br)) statCoverageCigar(br,CoverageWindows,TheContig,Mut,Args);
-	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindows, Mut, Args);
+	searchForClipSignatures(br, TheContig, SamFile, Tech, *pTypeSignatures, CoverageWindowsPs, CoverageWindowsNs, Mut, Args);
 }
 
 void * handlebrWrapper(void * args)
 {
 	pthread_t tid=pthread_self();
 	HandleBrArgs * A=(HandleBrArgs*)args;
-	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, &(A->pAlignmentsSigs->at(tid)), &(A->pTypeSignatures->at(tid)), &(A->pAllPrimarySegments->at(tid)), A->CoverageWindows, A->mut, A->pArgs);
+	handlebr(A->br, A->pTheContig, A->pSamFile, A->Tech, A->pSampleStats, &(A->pAlignmentsSigs->at(tid)), &(A->pTypeSignatures->at(tid)), &(A->pAllPrimarySegments->at(tid)), *(A->pCoverageWindowsPs), *(A->pCoverageWindowsNs), A->mut, A->pArgs);
 	bam_destroy1(A->br);
 	delete A;
 	return NULL;
@@ -1620,7 +1665,7 @@ void * reduceCW(void * Args)
 }
 
 // unsigned long long TotalReduceTime=0;
-void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, vector<Stats> AllStats, vector<int> AllTechs, float* CoverageWindows, unsigned long CoverageWindowsN, const char * DataSource)
+void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &TypeSignatures, SegmentSet & AllPrimarySegments, Arguments & Args, vector<Sam>& SamFiles, const vector<Stats> &AllStats, const vector<int> &AllTechs, vector<float*>& CoverageWindowsPs, vector<unsigned long> &CoverageWindowsNs, const char * DataSource)
 {
 	// unsigned long long ReduceTime=0;
 	const char * ReferenceFileName=Args.ReferenceFileName;
@@ -1631,7 +1676,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 	{
 		const char * SampleFileName=BamFileNames[k];
 		Args.Log.info("Reading %s for region %s...",SampleFileName,TheContig.Name.c_str());
-		Stats &SampleStats=AllStats[k];
+		const Stats &SampleStats=AllStats[k];
 
 		string Region=TheContig.Name;
 
@@ -1671,7 +1716,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				hts_itr_t* RegionIter=sam_itr_querys(SamFiles[k].BamIndex,SamFiles[k].Header,Region.c_str());
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
-					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindows, &CWMutex, &Args);
+					handlebr(br,&TheContig, &SamFiles[k], Tech, &SampleStats, &AlignmentsSigs, &TypeSignatures, &AllPrimarySegments, CoverageWindowsPs, CoverageWindowsNs, &CWMutex, &Args);
 				}
 				bam_destroy1(br);
 			}
@@ -1707,7 +1752,7 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				while(sam_itr_next(SamFiles[k].SamFile, RegionIter, br) >=0)//read record
 				{
 					bam1_t *cbr=bam_dup1(br);
-					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &ProcessASVec, &ProcessSigVec, &ProcessSegS, CoverageWindows, &CWMutex, &Args};
+					HandleBrArgs *A=new HandleBrArgs{cbr,&TheContig, &SamFiles[k], Tech, &SampleStats, &ProcessASVec, &ProcessSigVec, &ProcessSegS, &CoverageWindowsPs, &CoverageWindowsNs, &CWMutex, &Args};
 					hts_tpool_dispatch(p.pool,HandlebrProcess,handlebrWrapper,(void *)A);
 				}
 				bam_destroy1(br);

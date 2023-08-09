@@ -16,17 +16,19 @@
 #include <map>
 #include <string>
 #include "crelib/crelib.h"
+#include "optutils/OptHelper.h"
 
 const int NumberOfSVTypes=4;//Default is static so is fine.
 const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.2.5";
+	const char * Version="1.2.6";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	cre::Logger Log;
 	std::string CommandLine;
 	std::string RunHash;//Storing std::hash<std::string>(Version+Arguments) in hex.
+	OptHelper * OH=NULL;
 	int TestN=0;
 	const char * ReferenceFileName=0;
 	std::vector<const char *> BamFileNames;
