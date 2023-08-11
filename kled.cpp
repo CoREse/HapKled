@@ -281,6 +281,12 @@ void * updateCLRParas(void *pArgs)
 			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCLRNearRanges[i];
 			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCLRTypeForceBrothers2[i];
 			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCLRTypeLengthRatios2[i];
+			Args.ASSBases[i][0]=Args.CLRASSBases[i][0];
+			Args.ASSBases[i][1]=Args.CLRASSBases[i][1];
+			Args.ASSCoverageMulti[i][0]=Args.CLRASSCoverageMulti[i][0];
+			Args.ASSCoverageMulti[i][1]=Args.CLRASSCoverageMulti[i][1];
+			Args.LSDRSs[i][0]=Args.CLRLSDRSs[i][0];
+			Args.LSDRSs[i][1]=Args.CLRLSDRSs[i][1];
 		}
 	}
 	return NULL;
@@ -300,6 +306,12 @@ void * updateCCSParas(void *pArgs)
 			Args.BrotherhoodNearRanges[i]=				Args.BrotherhoodCCSNearRanges[i];
 			Args.BrotherhoodTypeForceBrothers2[i]=		Args.BrotherhoodCCSTypeForceBrothers2[i];
 			Args.BrotherhoodTypeLengthRatios2[i]=		Args.BrotherhoodCCSTypeLengthRatios2[i];
+			Args.ASSBases[i][0]=Args.CCSASSBases[i][0];
+			Args.ASSBases[i][1]=Args.CCSASSBases[i][1];
+			Args.ASSCoverageMulti[i][0]=Args.CCSASSCoverageMulti[i][0];
+			Args.ASSCoverageMulti[i][1]=Args.CCSASSCoverageMulti[i][1];
+			Args.LSDRSs[i][0]=Args.CCSLSDRSs[i][0];
+			Args.LSDRSs[i][1]=Args.CCSLSDRSs[i][1];
 		}
 	}
 	return NULL;

@@ -22,7 +22,7 @@ const int NumberOfSVTypes=4;//Default is static so is fine.
 const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.2.6";
+	const char * Version="1.2.7";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	cre::Logger Log;
@@ -59,10 +59,10 @@ struct Arguments {
     int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.0,1.0,0.7,0.1};//For SV Types
-       int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={100,0,200,100};
-    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.1,0.2,0.3,0.1};//For SV Types
-       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={0,0,100,0};
+    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.5,1.2,0.7,0.1};//For SV Types
+       int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={50,10,200,100};
+    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.3,0.3,0.3,0.1};//For SV Types
+       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={60,0,100,0};
        int BrotherhoodCLRNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
        int BrotherhoodCLRTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodCLRTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
@@ -89,16 +89,16 @@ struct Arguments {
 	{85,99},
 	{98,0}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
-	{{0,2}//DEL
+	{{1,0}//DEL
 	,{2,0}//INS
 	,{4,0}//DUP
 	,{2,1}};//INV
-	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.4,0.09},
-	{0.09,0.39},
+	double CLRASSCoverageMulti[NumberOfSVTypes][2]={{0.13,0.12},
+	{0.12,0.5},
 	{0.13,0.1},
 	{0,0.18}};
-	double CLRLSDRSs[NumberOfSVTypes][2]={{55, 75},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
-	{60,90},
+	double CLRLSDRSs[NumberOfSVTypes][2]={{65, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
+	{50,95},
 	{85,99},
 	{98,0}};
 	double CCSASSBases[NumberOfSVTypes][2]={{0,0},

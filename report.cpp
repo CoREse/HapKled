@@ -786,18 +786,18 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
         double (*ASSBases)[2]=Args.ASSBases;
         double (*ASSCoverageMulti)[2]=Args.ASSCoverageMulti;
         double (*LSDRSs)[2]=Args.LSDRSs;
-        if (Args.AllCLR)
-        {
-            ASSBases=Args.CLRASSBases;
-            ASSCoverageMulti=Args.CLRASSCoverageMulti;
-            LSDRSs=Args.CLRLSDRSs;
-        }
-        else if (Args.AllCCS)
-        {
-            ASSBases=Args.CCSASSBases;
-            ASSCoverageMulti=Args.CCSASSCoverageMulti;
-            LSDRSs=Args.CCSLSDRSs;
-        }
+        // if (Args.AllCLR)
+        // {
+        //     ASSBases=Args.CLRASSBases;
+        //     ASSCoverageMulti=Args.CLRASSCoverageMulti;
+        //     LSDRSs=Args.CLRLSDRSs;
+        // }
+        // else if (Args.AllCCS)
+        // {
+        //     ASSBases=Args.CCSASSBases;
+        //     ASSCoverageMulti=Args.CCSASSCoverageMulti;
+        //     LSDRSs=Args.CCSLSDRSs;
+        // }
         if (SVType=="DUP" or SVType=="INV") if (SS-ST>ST) {Keep=false;return;}
         if (SVType=="INV")
         {
