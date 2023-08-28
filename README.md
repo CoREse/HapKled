@@ -9,9 +9,6 @@ To get the kled binary:
 #to get htslib
 git submodule update --init --recursive
 
-#prepare the htslib
-make htsconf
-
 #make kled
 make
 ```
@@ -31,4 +28,9 @@ The default parameters are tuned for ONT data, if your inputs are CLR or CCS dat
 ```
 kled -R Reference.fa --CCS CCS.bam > SVs.vcf
 kled -R Reference.fa --CLR CLR.bam > SVs.vcf
+```
+
+For the description of all parameters:
+```
+kled --help
 ```
