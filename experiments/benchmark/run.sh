@@ -28,17 +28,14 @@ do
 
         GREPSTR='INV\|BND\|DUP'
         SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|INS'
         SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|DEL'
         SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
     done
@@ -72,17 +69,14 @@ do
 
         GREPSTR='INV\|BND\|DUP'
         SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|INS'
         SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|DEL'
         SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
     done
@@ -116,17 +110,14 @@ do
 
         GREPSTR='INV\|BND\|DUP'
         SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|INS'
         SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
         GREPSTR='INV\|BND\|DUP\|DEL'
         SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz"
         GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
         bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
     done
