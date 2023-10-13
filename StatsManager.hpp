@@ -14,6 +14,7 @@
 
 #include "StatsTracker.hpp"
 #include <unordered_set>
+#include <optional>
 
 #define bam_read_no(_bp) (((((b)->core.flag&BAM_FREAD2) != 0) &&(((b)->core.flag&BAM_FREAD1) == 0)) ? 2 : 1)
 char* bam_get_string_tag(bam1_t* _bp, char* tag);

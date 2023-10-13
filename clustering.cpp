@@ -275,13 +275,10 @@ bool isBrother(const Signature &A, const Signature &B, float PosRatio=0.1, int F
     //     return false;
     // }
     if (A.TemplateName==B.TemplateName) return false;
-    // Ratio=0.2;
     if (abs(A.Begin-B.Begin)<=ForceBrother && abs(A.End-B.End)<=ForceBrother) return true;
     int MinLength=min(A.Length,B.Length);
     int LengthEndurance=max(LengthMinEndurance,int(MinLength*LengthRatio));
-    // if (abs(A.Begin-B.Begin)<=MinLength*PosRatio && abs(A.End-B.End)<=MinLength*PosRatio && abs(A.Length-B.Length)<=MinLength*LengthRatio) return true;
     if (abs(A.Begin-B.Begin)<=MinLength*PosRatio && abs(A.End-B.End)<=MinLength*PosRatio && abs(A.Length-B.Length)<=LengthEndurance) return true;
-    // if (abs(A.Begin-B.Begin)<=NearRange && abs(A.End-B.End)<=NearRange && abs(A.Length-B.Length)<=(MAX(5,MinLength*0.1))) return true;
     return false;
 }
 
@@ -299,22 +296,7 @@ bool isBrother(const vector<Signature> &A, const vector<Signature> &B, float Pos
         if (abs(A[0].Length-B[0].Length)<ForceBrother2 && abs(A[0].Begin-B[0].Begin)<NearRange && abs(A[0].End-B[0].End)<NearRange) return true;
         return false;
     }
-    // double ABegin=0,AEnd=0,ALength=0,BBegin=0,BEnd=0,BLength=0;
     const set<string> & ATemplates=AS->Templates;
-    // for (int i=0;i<A.size();++i)
-    // {
-    //     ABegin=(ABegin*i)/(i+1)+A[i].Begin/(double(i+1));
-    //     AEnd=(AEnd*i)/(i+1)+A[i].End/(double(i+1));
-    //     ALength=(ALength*i)/(i+1)+A[i].Length/(double(i+1));
-    //     ATemplates.insert(A[i].TemplateName);
-    // }
-    // for (int i=0;i<B.size();++i)
-    // {
-    //     if (ATemplates.count(B[i].TemplateName)!=0) return false;
-    //     BBegin=(BBegin*i)/(i+1)+B[i].Begin/(double(i+1));
-    //     BEnd=(BEnd*i)/(i+1)+B[i].End/(double(i+1));
-    //     BLength=(BLength*i)/(i+1)+B[i].Length/(double(i+1));
-    // }
     double MeanLength=(AS->ALength+BS->ALength)/2.0;
     double LengthDiff=ForceBrother2;
     double LengthRatioDiff=LengthRatio2;

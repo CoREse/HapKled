@@ -216,26 +216,8 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 		{
 			if (R.Keep) ContigOutputs[i][t].push_back(R);
 		}
-		// Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, ContigTotalCoverage[i], Args));
 	}
-	// updateTime("Results generation","Sorting results...");
-	// sort(Records.data(),Records.data()+Records.size());
 	sort(ContigOutputs[i][t].data(),ContigOutputs[i][t].data()+ContigOutputs[i][t].size());
-	// Records.sort();
-	// updateTime("Results sorting","");
-
-	// for (auto r: Records)
-	// {
-	// 	// if (!r.Keep) continue;
-	// 	if (!r.Keep && (r.getSVTypeI()!=2 || (r.getSVTypeI()!=2 && r.getST()<ContigTotalCoverage[i]/6.0))) continue;
-	// 	ContigOutputs[i][r.getSVTypeI()].push_back(r);
-	// 	// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-	// 	// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
-	// 	// ++SVCounts[r.getSVTypeI()];
-	// 	// // printf("\n%s",string(r).c_str());
-	// }
-	// free(CoverageWindowsSums);
-	// free(CheckPoints);
 }
 
 void* handleCallContigType(void* Args)
@@ -624,7 +606,6 @@ int main(int argc, const char* argv[])
 
 			Log.info("Reading alignments...");
 			SegmentSet AllPrimarySegments;
-			// vector<Signature> ContigTypeSignatures[NumberOfSVTypes];//For supported SV type
 			float *CoverageWindows=new float[NumberOfCoverageWindows];
 			CoverageWindowsPs.push_back(CoverageWindows);
 			for (int k=0;k<Contigs[i].Size/CoverageWindowSize+1;++k) CoverageWindows[k]=0;
@@ -632,8 +613,6 @@ int main(int argc, const char* argv[])
 			AllPrimarySegments.sortNStat();
 			ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 
-			// float *CoverageWindows=CoverageWindowsPs[ContigIndex[i]];
-			// SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[ContigIndex[i]];
 			vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
 			#ifdef DEBUG
 			if (WriteSigDataFileName!="")
@@ -658,22 +637,11 @@ int main(int argc, const char* argv[])
 				oa << ContigTypeSignatures;
 			}
 			#endif
-			// fprintf(stderr,"%u\n",Contigs[i].Size-1);
 			float *CoverageWindowsSums=NULL;//=(float*) malloc(sizeof(float)*(int)(NumberOfCoverageWindows+1));
 			CoverageWindows[0]=0;
 			// CoverageWindowsSums[0]=0;
 			int CheckPointInterval=10000;
 			float *CheckPoints=NULL;//=(double *)malloc(sizeof(double)*(int)(NumberOfCoverageWindows/CheckPointInterval+1));
-			// CheckPoints[0]=0;
-			// for (int i=1;i<NumberOfCoverageWindows+1;++i)
-			// {
-			// 	CoverageWindowsSums[i]=CoverageWindowsSums[i-1]+CoverageWindows[i];
-			// 	if (i%CheckPointInterval==0)
-			// 	{
-			// 		CheckPoints[(int)i/CheckPointInterval]=CoverageWindowsSums[i];
-			// 		CoverageWindowsSums[i]=0;
-			// 	}
-			// }
 			double &WholeCoverage=ContigWholeCoverage[i];
 			WholeCoverage=getAverageCoverage(0,Contigs[i].Size-1,CoverageWindows,Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
 			// int NameLength=Contigs[i].Name.length();
@@ -686,8 +654,6 @@ int main(int argc, const char* argv[])
 			TotalCoverage+=WholeCoverage*((double)(Contigs[i].Size)/(double)(ProcessedLength+Contigs[i].Size));
 			Args.TotalCoverage=TotalCoverage;
 			ProcessedLength+=Contigs[i].Size;
-			// double WholeCoverage=CoverageWindowsSums[(int)(Contigs[i].Size/CoverageWindowSize+1)]/(Contigs[i].Size/CoverageWindowSize+1);
-			// continue;
 			int totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0, NGSCigar=0, NGSClip=0;
 			for (int m=0;m<NumberOfSVTypes;++m)
 			{
@@ -720,8 +686,6 @@ int main(int argc, const char* argv[])
 				}
 			}
 			Log.debug("%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d(Cigar: %d, Clip: %d), SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, NGSCigar, NGSClip, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
-			// extern int forwarded, reversed, nread1, nread2;
-			// fprintf(stderr,"%forwarded:%d,reversed:%d, nread1:%d, nread2:%d",forwarded,reversed,nread1,nread2);
 			
 			Log.info("Clustering and filtering...");
 			vector<vector<Signature>> SignatureTypeClusters[NumberOfSVTypes];
@@ -744,8 +708,6 @@ int main(int argc, const char* argv[])
 			totalsig=0,cigardel=0, cigarins=0, cigardup=0, drpdel=0, drpdup=0, clipdel=0, clipins=0, clipdup=0, clipinv=0, NGS=0, SMRT=0;
 			for (int m=0;m<SignatureClusters.size();++m)
 			{
-				// vector<Signature>& ContigSignatures=ContigTypeSignatures[m];
-				// totalsig+=ContigSignatures.size();
 				for (int j=0;j<SignatureClusters[m].size();++j)
 				{
 					if (SignatureClusters[m][j].Type==0)
@@ -773,7 +735,6 @@ int main(int argc, const char* argv[])
 			Log.debug("%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
 			vector<VCFRecord> Records;
-			// #pragma omp parallel for reduction(RecordVectorConc:Records)
 			for (int j=0;j<SignatureClusters.size();++j)
 			{
 				// ++Times[omp_get_thread_num()];
@@ -783,23 +744,16 @@ int main(int argc, const char* argv[])
 				Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 			}
 			sort(Records.data(),Records.data()+Records.size());
-			// Records.sort();
 
 			for (auto r: Records)
 			{
 				if (!r.Keep) continue;
 				ContigOutputs[i][r.getSVTypeI()].push_back(r);
-				// r.genotype(Contigs[i],AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
-				// r.resolveRef(Contigs[i],Ref,SVCounts[r.getSVTypeI()], WholeCoverage,Args);
-				// ++SVCounts[r.getSVTypeI()];
-				// // printf("\n%s",string(r).c_str());
 			}
 			delete CoverageWindows;
 			CoverageWindowsPs[i]=nullptr;
 			TypeSignatures[i].clear();
 			ContigsAllPrimarySegments[i]=SegmentSet();
-			// free(CoverageWindowsSums);
-			// free(CheckPoints);
 		}
 	}
 	#ifdef DEBUG

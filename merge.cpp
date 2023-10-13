@@ -27,8 +27,6 @@ vector<int> getAllProperEdges(vector<Signature> &Signatures, int MaxDis=500)// a
 
 inline void generateSegsFromSuccessiveLink(vector<Signature> &Sigs, vector<Segment> &Segs, int LinkStart, int LinkEnd, int &ScoreA, int LimitStartI=0, int LimitEndI=-1, int A=500)
 {
-	// if (Sigs.size()>10)
-	// fprintf(stderr,"here");
     Segs.clear();
 	ScoreA=0;
 	int a=0,b=0;
@@ -54,8 +52,6 @@ inline void generateSegsFromSuccessiveLink(vector<Signature> &Sigs, vector<Segme
 
 inline vector<Segment> generateSegsFromLink(vector<Signature> &Sigs, vector<int> &Link, int &ScoreA, int LimitStartI=0, int LimitEndI=-1, int A=500)
 {
-	// if (Sigs.size()>10)
-	// fprintf(stderr,"here");
 	vector<Segment> Segs;
 	ScoreA=0;
 	int a=0,b=0;
@@ -80,7 +76,6 @@ inline vector<Segment> generateSegsFromLink(vector<Signature> &Sigs, vector<int>
 				}
 				a+=j-i;
 				Segs.push_back(Segment(Sigs[Link[i]].Begin,Sigs[Link[i]].Begin+Length,InsBases.c_str()));
-				// Segs.push_back(Segment(Sigs[Link[i]].Begin,Sigs[Link[j-1]].End));
 				i=j-1;
 				break;
 			}
@@ -178,63 +173,9 @@ int getBestScore(vector<Segment> &Segs, vector<Signature> &Sigs, int B=100)
                 int ScoreA;
                 for (int k=i;k<j-1;++k) if (AllEdges.count(k)==1) Link.push_back(k);
                 vector<Segment> Segs2=generateSegsFromLink(Sigs,Link,ScoreA,i,j);
-                // int Length=0;
-                // vector<Segment> Segs2;
-                // for (int k=i; k<j; ++k) Length+=Sigs[k].Length;
-                // Segs2.push_back(Segment(Sigs[i].Begin,Sigs[i].Begin+Length));
                 BestScores[i][j] = max(best, scoreB(Segs,Segs2,100));
             }
         }
-    //     vector<int> Edges;
-    //     // Edges=getAllProperEdges(Sigs);
-    //     for (int i=0;i<Sigs.size()-1;++i) Edges.push_back(i);
-    //     // int Best=0;
-    //     // vector<int> BestLink;
-    //     // for (int i=0;i<Edges.size();++i)
-    //     // {
-    //     // 		vector<Segment> Segs2=generateSegsFromLink(Sigs,Link,ScoreA);
-    //     // }
-
-    //     // }
-    //     int BestScores[Edges.size()+1][Edges.size()+1];//DP scores, [A][B], for Score for Edges[A,B), and max linked number is B-A, and shold contain Edges[B] but not Edges[B]+1
-    //     sort(Edges.begin(),Edges.end(),[](int &a, int &b){return a<b;});
-    //     for (int i=0;i<=Edges.size();++i) BestScores[i][i]=0;
-    //     // for (int i=0;i<=Edges.size();++i)
-    //     // {
-    //     //     if (i==Edges.size()) BestScores[i][i]=0;
-    //     //     else
-    //     //     {
-    //     //         int ScoreA=0;
-    //     //         vector<Segment> Segs2;
-    //     //         Segs2.push_back(Segment(Sigs[Edges[i]].Begin,Sigs[Edges[i]].End));
-    //     //         BestScores[i][i]=scoreB(Segs,Segs2,100);
-    //     //     }
-    //     // }
-    //     for (int len=1;len<=Edges.size();++len)
-    //     {
-    //         for (int i=0;i<=Edges.size()-len;++i)
-    //         {
-    //             int j=i+len;
-    //             int best=0;
-    //             for (int k=i+1;k<j;++k)//The Edges[k] not linked.
-    //             {
-    //                 // vector<Segment> Segs2;
-    //                 // vector<int> Link;
-    //                 // int ScoreA;
-    //                 // Segs2=generateSegsFromLink(Sigs,Link,ScoreA,Edges[k]+1,Edges[k]+2);
-    //                 // Segs2.push_back(Segment(Sigs[Edges[k]+1].Begin,Sigs[Edges[k]+1].End));
-    //                 // best=max(best, BestScores[i][k]+BestScores[k][j]+scoreB(Segs,Segs2,100));
-    //                 best=max(best, BestScores[i][k]+BestScores[k+1][j]);
-    //             }
-    //             vector<int> Link;
-    //             int ScoreA;
-    //             for (int k=i;k<j;++k) Link.push_back(Edges[k]);
-    //             int Start=i==0?0:Edges[i];//[Edges[i],Edges[j]),[Edges[j],Edges[next]), no, Edges[i] could have Edges[j] as Edges[i]+1
-    //             int End=j==Edges.size()?-1:(j==Edges.size()-1?Edges[j]+1:Edges[j+1]);// To consider the nodes between Edges[j]+1 and Edges[j+1]
-    //             vector<Segment> Segs2=generateSegsFromLink(Sigs,Link,ScoreA,Start,End);
-    //             BestScores[i][j]=max(best,scoreB(Segs,Segs2,100));
-    //         }
-    //     }
         return BestScores[0][Edges.size()];
     }
 	int BestScores[Sigs.size()+1][Sigs.size()+1];//DP scores, [A][B], for Score for Sigs[A,B)
@@ -249,15 +190,8 @@ int getBestScore(vector<Segment> &Segs, vector<Signature> &Sigs, int B=100)
 			for (int k=i+1; k<j; k++){
 				best = max(best, BestScores[i][k]+BestScores[k][j]);
 			}
-			// vector<int> Link;
 			int ScoreA;
-			// for (int k=i;k<j-1;++k) Link.push_back(k);
-			// vector<Segment> Segs2=generateSegsFromLink(Sigs,Link,ScoreA,i,j);
             generateSegsFromSuccessiveLink(Sigs,Segs2,i,j-1,ScoreA,i,j);
-			// int Length=0;
-			// vector<Segment> Segs2;
-			// for (int k=i; k<j; ++k) Length+=Sigs[k].Length;
-			// Segs2.push_back(Segment(Sigs[i].Begin,Sigs[i].Begin+Length));
 			BestScores[i][j] = max(best, scoreB(Segs,Segs2,B));
     	}
 	}
@@ -326,15 +260,12 @@ int searchEnd(const int End, int Type, vector<AlignmentSigs> &ASs, const int * S
 	if (s==S) return s;
 	if (S==-1) S=ASs.size();
 	int m=(s+S)/2;
-	// assert(ASs[m].BeginMost!=-1);
 	if (ASs[SigIndexes[m]].TypeBeginMost[Type]>End) return searchEnd(End, Type, ASs, SigIndexes, s, m);
-	// return searchEnd(End, Type, ASs, SigIndexes,m, m==s?S-1:S);
 	return searchEnd(End, Type, ASs, SigIndexes,m==s?s+1:m, S);
 }
 
 void getRelevants(int Type, AlignmentSigs *pAlignmentSigs, vector<AlignmentSigs> * pAlignmentsSigs, const int * SigIndexes, int &RelevantBeginI, int &RelevantEndI, const int * MaxEnds)
 {
-	// assert(pAlignmentSigs->BeginMost!=-1);
 	RelevantBeginI=searchBegin(pAlignmentSigs->BeginMost,MaxEnds, pAlignmentsSigs->size());
 	RelevantEndI=searchEnd(pAlignmentSigs->BeginMost,Type,*pAlignmentsSigs, SigIndexes);
 }
@@ -344,24 +275,18 @@ void omniBMergeType(int Type, vector<Signature> &Signatures, int Index, vector<A
 	if (pAlignmentsSigs->at(Index).TypeSignatures[Type].size()==0) return;
 	int RelevantBeginIndexI, RelevantEndIndexI;
 	getRelevants(Type, &(*pAlignmentsSigs)[Index], pAlignmentsSigs, SigIndexes, RelevantBeginIndexI, RelevantEndIndexI, MaxEnds);
-	// if (RelevantEndIndexI>RelevantBeginIndexI+20) RelevantEndIndexI=RelevantBeginIndexI+20;
 	vector<int> Edges=getAllProperEdges(pAlignmentsSigs->at(Index).TypeSignatures[Type]);
 	vector<Segment> BestSegs;
 	int BestBestScore=INT_MIN;
 	forAllCandidateLinks(Type, Index, pAlignmentsSigs, SigIndexes, RelevantBeginIndexI, RelevantEndIndexI,BestSegs,BestBestScore, Edges, *pArgs, pArgs->OmniBMaxEdges);
-	// pthread_mutex_lock(&mut->m_AddingSigs[Type]);
 	getSigsFromSegs(Type,BestSegs,Signatures,(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].Tech,(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].TemplateName.c_str(),(*pAlignmentsSigs)[Index].TypeSignatures[Type][0].Quality);
-	// pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
 }
 
 void omniBMerge(vector<vector<Signature>> * pTypeSignatures, int Index, vector<AlignmentSigs> * pAlignmentsSigs, const int **TypeSigIndexes, const int **TypeMaxEnds, Arguments *pArgs)
 {
-	// int RelevantBeginI, RelevantEndI;
-	// getRelevants(pAlignmentSigs, pAlignmentsSigs,RelevantBeginI,RelevantEndI, MaxEnds);
     if (Index % 10000==0) pArgs->Log.verbose("Merged %d",Index);
 	omniBMergeType(0, (*pTypeSignatures)[0], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
 	omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes[0], TypeMaxEnds[0], pArgs);
-	// omniBMergeType(1, (*pTypeSignatures)[1], Index, pAlignmentsSigs, TypeSigIndexes+pAlignmentsSigs->size(), TypeMaxEnds+pAlignmentsSigs->size(), mut);
 }
 
 //for multithreading
@@ -385,14 +310,6 @@ int AlignmentSigs::getBeginMost()
 		if (TypeSignatures[0].size()>0) TypeBeginMost[0]=TypeSignatures[0][0].Begin;
 		if (TypeSignatures[1].size()>0) TypeBeginMost[1]=TypeSignatures[1][0].Begin;
 		BeginMost=TypeBeginMost[0]==-1?TypeBeginMost[1]:(TypeBeginMost[1]==-1?TypeBeginMost[0]:min(TypeBeginMost[0],TypeBeginMost[1]));
-		// if (BeginMost==-1)
-		// {
-		// 	if (TypeSignatures[1].size()>0) BeginMost=TypeSignatures[1][0].Begin;
-		// }
-		// else
-		// {
-		// 	if (TypeSignatures[1].size()>0) BeginMost=min(BeginMost,TypeSignatures[1][0].Begin);
-		// }
 	}
 	return BeginMost;
 }
@@ -405,7 +322,6 @@ int AlignmentSigs::getEndMost()
 		for (int j=0;j<TypeSignatures[i].size();++j)
 		{
 			TypeEndMost[i]=max(TypeEndMost[i],TypeSignatures[i][j].End);
-			// EndMost=max(EndMost,TypeSignatures[i][j].End);
 		}
 		EndMost=max(TypeEndMost[0],TypeEndMost[1]);
 	}
@@ -464,9 +380,7 @@ void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & Al
             if(CurrentLength>=Args.MinSVLen)
             {
                 Signature Temp(0,AlignmentSigs.TypeSignatures[Type][0].Tech,Type,CurrentBegin,CurrentBegin+CurrentLength,AlignmentSigs.TemplateName.c_str(),AlignmentSigs.TypeSignatures[Type][0].Quality,InsBases.c_str());
-				// pthread_mutex_lock(&mut->m_AddingSigs[Type]);
                 Signatures.push_back(Temp);
-                // pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
             }
             CurrentBegin=Begin;
 			CurrentLength=ThisLength;
@@ -483,9 +397,7 @@ void simpleMergeSigs(int Type, vector<Signature> &Signatures, AlignmentSigs & Al
 		if(CurrentLength>=Args.MinSVLen)
 		{
                 Signature Temp(0,AlignmentSigs.TypeSignatures[Type][0].Tech,Type,CurrentBegin,CurrentBegin+CurrentLength,AlignmentSigs.TemplateName.c_str(),AlignmentSigs.TypeSignatures[Type][0].Quality,InsBases.c_str());
-                // pthread_mutex_lock(&mut->m_AddingSigs[Type]);
                 Signatures.push_back(Temp);
-                // pthread_mutex_unlock(&mut->m_AddingSigs[Type]);
 		}
 	}
 }
