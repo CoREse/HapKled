@@ -22,6 +22,7 @@ struct Segment
     Segment(int Begin=0,int End=0, const char * CInsBases="");
     bool operator==(const Segment &) const;
     bool operator<(const Segment &) const;
+    operator std::string();
     #ifdef DEBUG
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version)
@@ -62,6 +63,7 @@ class Signature : public Segment
     bool operator<(const Signature &Other) const;
     bool operator==(const Signature & Other) const;
     void setID(unsigned ID);
+    operator std::string();
     #ifdef DEBUG
     template<class Archive>
     void serialize(Archive & ar, const unsigned int version)

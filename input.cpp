@@ -1216,7 +1216,8 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, const St
 		// pthread_mutex_unlock(&mut->m_AllPrimarySeg);
 	}
 	unsigned long long BrHash=0;
-	BrHash=br->core.tid;
+	// BrHash=br->core.tid;
+	BrHash=br->l_data;
 	BrHash<<=24;
 	BrHash+=br->core.pos;
 	BrHash<<=16;
@@ -1224,6 +1225,7 @@ void handlebr(bam1_t *br, Contig * pTheContig, Sam *pSamFile, int Tech, const St
 	BrHash<<=16;
 	BrHash+=br->core.n_cigar&0xffff;
 	AlignmentSigs TheAlignment(BrHash, bam_get_qname(br));
+	// AlignmentSigs TheAlignment(br->id, bam_get_qname(br));
 	getDelFromCigar(br,Tech,TheAlignment.TypeSignatures[0], Args);
 	getInsFromCigar(br,Tech,TheAlignment.TypeSignatures[1], Args);
 	if (TheAlignment.TypeSignatures[0].size()!=0 || TheAlignment.TypeSignatures[1].size()!=0)
@@ -1514,11 +1516,11 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 				AlignmentsSigs[i].getEndMost();
 			}
 			sort(TypeSigIndexes[0],TypeSigIndexes[0]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
-				if (AlignmentsSigs[a].TypeBeginMost[0]==AlignmentsSigs[b].TypeBeginMost[0]) return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
+				if (AlignmentsSigs[a].TypeBeginMost[0]==AlignmentsSigs[b].TypeBeginMost[0]) if (AlignmentsSigs[a].AlignmentID==AlignmentsSigs[b].AlignmentID) return AlignmentsSigs[a].TemplateName<AlignmentsSigs[b].TemplateName; else return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
 				return AlignmentsSigs[a].TypeBeginMost[0]<AlignmentsSigs[b].TypeBeginMost[0];
 			});
 			sort(TypeSigIndexes[1],TypeSigIndexes[1]+AlignmentsSigs.size(),[&AlignmentsSigs](int a, int b) {
-				if (AlignmentsSigs[a].TypeBeginMost[1]==AlignmentsSigs[b].TypeBeginMost[1]) return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
+				if (AlignmentsSigs[a].TypeBeginMost[1]==AlignmentsSigs[b].TypeBeginMost[1]) if (AlignmentsSigs[a].AlignmentID==AlignmentsSigs[b].AlignmentID) return AlignmentsSigs[a].TemplateName<AlignmentsSigs[b].TemplateName; else return AlignmentsSigs[a].AlignmentID<AlignmentsSigs[b].AlignmentID;
 				return AlignmentsSigs[a].TypeBeginMost[1]<AlignmentsSigs[b].TypeBeginMost[1];
 			});
 			int *TypeMaxEnds[2];
@@ -1532,6 +1534,8 @@ void collectSignatures(Contig &TheContig, vector<vector<vector<Signature>>> &Typ
 					TypeMaxEnds[T][i]=max(TypeMaxEnds[T][i-1],AlignmentsSigs[TypeSigIndexes[T][i]].TypeEndMost[T]);
 				}
 			}
+			// for (int i=0;i<AlignmentsSigs.size();++i) printf("%s\n",string(AlignmentsSigs[TypeSigIndexes[0][i]]).c_str());
+			// return;
 			Args.Log.info("Start merging for %s...",TheContig.Name.c_str());
 			if (Args.ThreadN==1)
 			{

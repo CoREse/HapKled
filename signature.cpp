@@ -5,16 +5,16 @@
 using namespace std;
 
 Signature::Signature()
-:Type(0), Tech(0), SupportedSV(0), Segment(), CN(-1), TemplateName(""), Quality(0), Length(0), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString(""))
+:Type(0), Tech(0), SupportedSV(0), Segment(), CN(-1), Covered(false), TemplateName(""), Quality(0), Length(0), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString(""))
 {}
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, const char * InsBases)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End,InsBases}), CN(-1), TemplateName(TemplateName), Quality(Quality), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")){}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End,InsBases}), CN(-1), Covered(false), TemplateName(TemplateName), Quality(Quality), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")){}
 
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, Segment Read1, Segment Read2, int ALength)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(), Length(ALength), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {Segments.push_back(Read1), Segments.push_back(Read2);}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), Covered(false), TemplateName(TemplateName), Quality(Quality), Segments(), Length(ALength), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {Segments.push_back(Read1), Segments.push_back(Read2);}
 
 Signature::Signature(int Type, int Tech, int SupportedSV, int Begin, int End, string TemplateName, double Quality, vector<Segment> Segments)
-:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), TemplateName(TemplateName), Quality(Quality), Segments(Segments), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {}
+:Type(Type), Tech(Tech), SupportedSV(SupportedSV), Segment({Begin,End}), CN(-1), Covered(false), TemplateName(TemplateName), Quality(Quality), Segments(Segments), Length(End-Begin), InvLeft(false), InvRight(false), Artificial(false)DEBUG_CODE(COMMA MergeString("")) {}
 
 const char* Signature::SVTypeNames[]={"DEL","INS","DUP","INV"};
 
@@ -40,17 +40,26 @@ void Signature::setID(unsigned d)
 
 bool Signature::operator<(const Signature &Other) const
 {
-    char AL[100], BL[100];
-    sprintf(AL,"%d",this->Length);
-    sprintf(BL,"%d",Other.Length);
-    int cmp=strcmp(AL,BL);
+    // char AL[100], BL[100];
+    // sprintf(AL,"%d",this->Length);
+    // sprintf(BL,"%d",Other.Length);
+    // int cmp=strcmp(AL,BL);
     if (this->Begin<Other.Begin) return true;
     else if (this->Begin>Other.Begin) return false;
-    // else if (this->Length<Other.Length) return true;
-    // else if (this->Length>Other.Length) return false;
-    else if (cmp<0) return true;
-    else if (cmp>0) return false;
+    else if (this->Length<Other.Length) return true;
+    else if (this->Length>Other.Length) return false;
+    else if (this->Quality>Other.Quality) return true;
+    else if (this->Quality<Other.Quality) return false;
+    else if (this->InsBases<Other.InsBases) return true;
+    else if (this->InsBases>Other.InsBases) return false;
+    // else if (cmp<0) return true;
+    // else if (cmp>0) return false;
     else return this->TemplateName<Other.TemplateName;
+}
+
+Signature::operator std::string()
+{
+    return TemplateName+", "+std::string(*((Segment*)this))+", "+std::to_string(Type)+" "+std::to_string(Tech)+" "+std::to_string(SupportedSV)+" "+std::to_string(CN)+" "+std::to_string(Covered)+" "+std::to_string(Tech)+" "+std::to_string(Length)+" "+std::to_string(Quality)+" "+std::to_string(Artificial);
 }
 
 bool Signature::operator==(const Signature &Other) const
@@ -63,12 +72,17 @@ Segment::Segment(int Begin,int End, const char * CInsBases)
 
 bool Segment::operator==(const Segment & Other) const
 {
-    return Begin==Other.Begin && End==Other.End;
+    return Begin==Other.Begin && End==Other.End && InsBases==Other.InsBases;
 }
 
 bool Segment::operator<(const Segment & Other) const
 {
     return Begin<Other.Begin;
+}
+
+Segment::operator std::string()
+{
+    return "("+std::to_string(Begin)+", "+std::to_string(End)+"), ("+InsBases+")";
 }
 
 int precisionLevel(const Signature &A)

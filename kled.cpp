@@ -196,6 +196,16 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	vector<vector<Signature>> SignatureClusters;
 	vector<ClusterCore> SignatureClusterCores;
 	sortAndDeDup(ContigTypeSignatures[t]);
+	// printf("%s\n",Contigs[i].Name.c_str());
+	// // for (int i=0;i<ContigTypeSignatures.size();++i)
+	// // {
+	// 	printf("\tType %d\n",t);
+	// 	for (int j=0;j<ContigTypeSignatures[t].size();++j)
+	// 	{
+	// 		printf("\t\t%s\n",string(ContigTypeSignatures[t][j]).c_str());
+	// 	}
+	// // }
+	// return;
 	for (unsigned d=0;d<ContigTypeSignatures[t].size();++d) ContigTypeSignatures[t][d].setID(d);
 	clustering(t, Contigs[i].Name, ContigTypeSignatures[t],SignatureClusters,SignatureClusterCores,AllStats[i],Args);
 	
@@ -549,6 +559,8 @@ int main(int argc, const char* argv[])
 		if (Args.ThreadN>1)
 		{	
 			extern htsThreadPool p;
+			// p.pool=hts_tpool_init(Args.ThreadN);
+			// p.qsize=16;
 			hts_tpool_process *CallingProcess=hts_tpool_process_init(p.pool,p.qsize,1);
 			// #pragma omp parallel for
 			for (int i=0;i<NSeq;++i)

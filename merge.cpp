@@ -328,6 +328,20 @@ int AlignmentSigs::getEndMost()
 	return EndMost;
 }
 
+AlignmentSigs::operator std::string()
+{
+	std::string Result=std::to_string(AlignmentID)+": "+TemplateName+", ("+std::to_string(BeginMost)+", "+std::to_string(EndMost)+")";
+	for (int t=0;t<TypeSignatures.size();++t)
+	{
+		Result+="\n\tt"+std::to_string(t)+"("+std::to_string(TypeBeginMost[t])+", "+std::to_string(TypeEndMost[t])+")";
+		for (int i=0;i<TypeSignatures[t].size();++i)
+		{
+			Result+="\n\t\t"+std::string(TypeSignatures[t][i]);
+		}
+	}
+	return Result;
+}
+
 //to improve performance
 void divideASs(vector<AlignmentSigs> &ASs)
 {

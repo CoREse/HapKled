@@ -14,6 +14,7 @@ struct AlignmentSigs
 	AlignmentSigs(unsigned long long AlignmentID, const char *TempName="");
 	int getBeginMost();
 	int getEndMost();
+	operator std::string();
 };
 
 // struct MergingMutex
