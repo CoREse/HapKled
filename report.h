@@ -83,11 +83,12 @@ class VCFRecord
 
     VCFRecord();
     VCFRecord(const Contig & TheContig, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments &Args, float* CoverageWindowsSums=NULL, float* CheckPoints=NULL, int CheckPointInterval=0);
+    void resolveHPRecord(int* HPCounts, const Contig & TheContig, std::vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments &Args, float* CoverageWindowsSums=NULL, float* CheckPoints=NULL, int CheckPointInterval=0);
     void resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, double CC, Arguments & Args);
     std::string genotype(const Contig & TheContig, SegmentSet & AllPrimarySegments, float * CoverageWindows, float *CoverageWindowsSums, float* Checkpoints, int CheckPointInterval, Arguments & Args);
     operator std::string() const;
     bool operator<(const VCFRecord& Other) const;
-    void calcM3L(std::vector<Signature> & SignatureCluster);
+    void calcM3L(std::vector<Signature> & SignatureCluster, bool ExcludeHP0=false);
 };
 
 void addKledEntries(VCFHeader & Header);

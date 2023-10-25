@@ -373,19 +373,36 @@ double getAverageCoverage(int Begin, int End, float * CoverageWindows, Arguments
     return Cov;
 }
 
-bool statCluster(vector<Signature> &SignatureCluster, int & SS, int &ST, int& SS2, int& ST2)
+bool statCluster(vector<Signature> &SignatureCluster, int & SS, int &ST, int& SS2, int& ST2, bool ExcludeHP0=false)
 {
     SS=0;
     SS2=0;
     set<string> SupportTemps,SupportTemps2;//,SupportTempsCigar;
-    for (int i =0;i<SignatureCluster.size();++i)
+    if (ExcludeHP0)
     {
-        ++SS;
-        SupportTemps.insert(SignatureCluster[i].TemplateName);
-        if (SignatureCluster[i].Tech==1)
+        for (int i =0;i<SignatureCluster.size();++i)
         {
-            ++SS2;
-            SupportTemps2.insert(SignatureCluster[i].TemplateName);
+            if (SignatureCluster[i].HP==0) continue;
+            ++SS;
+            SupportTemps.insert(SignatureCluster[i].TemplateName);
+            if (SignatureCluster[i].Tech==1)
+            {
+                ++SS2;
+                SupportTemps2.insert(SignatureCluster[i].TemplateName);
+            }
+        }
+    }
+    else
+    {
+        for (int i =0;i<SignatureCluster.size();++i)
+        {
+            ++SS;
+            SupportTemps.insert(SignatureCluster[i].TemplateName);
+            if (SignatureCluster[i].Tech==1)
+            {
+                ++SS2;
+                SupportTemps2.insert(SignatureCluster[i].TemplateName);
+            }
         }
     }
     ST=SupportTemps.size();
@@ -588,12 +605,23 @@ string getInsConsensus(int SVLen, vector<Signature> & SignatureCluster, double E
     return Consensus;
 }
 
-void VCFRecord::calcM3L(vector<Signature> & SignatureCluster)
+void VCFRecord::calcM3L(vector<Signature> & SignatureCluster, bool ExcludeHP0)
 {
     vector<int> Lengths;
-    for (auto s : SignatureCluster)
+    if (ExcludeHP0)
     {
-        Lengths.push_back(s.Length);
+        for (auto s : SignatureCluster)
+        {
+            if (s.HP==0) continue;
+            Lengths.push_back(s.Length);
+        }
+    }
+    else
+    {
+        for (auto s : SignatureCluster)
+        {
+            Lengths.push_back(s.Length);
+        }
     }
     sort(Lengths.data(),Lengths.data()+Lengths.size());
     MinLength=Lengths[0];
@@ -633,6 +661,16 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
     Keep=true;
+    int HPCounts[3]={0,0,0};
+    for (int i=0;i<SignatureCluster.size();++i)
+    {
+        ++HPCounts[SignatureCluster[i].HP];
+    }
+    if (float(HPCounts[0]+HPCounts[0])/float(HPCounts[0]+HPCounts[0]+HPCounts[0])>0.7)
+    {
+        resolveHPRecord(HPCounts, TheContig, SignatureCluster, Core, AllPrimarySegments, CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+        return;
+    }
     statCluster(SignatureCluster,SS,ST,SS2,ST2);
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
@@ -741,6 +779,100 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
         }
     }
     #endif
+}
+void VCFRecord::resolveHPRecord(int * HPCounts, const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
+{
+    float HPRatios[3]={0,0,0};
+    for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
+    sort(SignatureCluster.begin(),SignatureCluster.end(),[](Signature &a, Signature&b){
+        return a.HP==b.HP? a<b : a.HP<b.HP;
+    });
+    int End0=0;
+    for (;End0<SignatureCluster.size();++End0) if (SignatureCluster[End0].HP!=0) break;
+    SignatureCluster.erase(SignatureCluster.begin(),SignatureCluster.begin()+End0);
+    if (HPRatios[1]/(HPRatios[1]+HPRatios[2])>0.8 || HPRatios[2]/(HPRatios[1]+HPRatios[2])>0.8)
+    {
+        statCluster(SignatureCluster,SS,ST,SS2,ST2);
+        SVType=getSVType(SignatureCluster);
+        SVTypeI=SignatureCluster[0].SupportedSV;
+        // if (SVTypeI==0 or SVTypeI==1) if (!cflag) {Keep=false;return;}
+        calcM3L(SignatureCluster,true);
+        tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType, Args);
+        int MeanSVLen=get<2>(Site);
+        SVLen=get<1>(Site);
+        Pos=get<0>(Site);//0-bsed now, after ref and alt then transform to 1-based, but should be the base before variantion. End should be the last base, but also should be transform to 1-based. So they don't change.
+        //VCF version 4.2 says if alt is <ID>, the pos is the base preceding the polymorphism. No mention of the "base 1" rule.
+        
+        if (SVLen<=0) {Keep=false;return;}
+
+        int CBegin=0, CEnd=SignatureCluster.size();
+        CR=0;
+        if (Core.End!=0)
+        {
+            CBegin=Core.Begin;
+            CEnd=Core.End;
+            CR=(CEnd-CBegin)/(SignatureCluster.size());
+        }
+
+        double LengthSD;
+        LS=getLengthSDRatioScore(SignatureCluster,MeanSVLen,&LengthSD);
+
+        if (ST>=Args.MinimumPreciseTemplates && LengthSD<Args.PreciseStandard && calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard && calcSD(EndIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),EndIter<int,vector<Signature>::iterator>(SignatureCluster.end()))<Args.PreciseStandard) Precise=true;
+        else Precise=false;
+
+        bool HasLeft=false, HasRight=false;
+        if (SVType=="INV")
+        {
+            for (int i=0;i<SignatureCluster.size();++i)
+            {
+                HasLeft|=SignatureCluster[i].InvLeft;
+                HasRight|=SignatureCluster[i].InvRight;
+            }
+            INFO="LR=";
+            if (HasLeft) INFO+="L";
+            if (HasRight) INFO+="R";
+        }
+        double Score=ST;
+        if (Args.WeightFilter)
+        {
+            Score=getWeightSum(SignatureCluster);
+        }
+        if (Args.NoFilter) Keep=true;
+        else if (ST<2) {Keep=false;return;}
+        else if (Args.Filter2ST) Keep=true;
+        else if (ST2>30) Keep=true;
+        else
+        {
+            if (Args.CalcPosSTD || Args.MinPosSTD[SVTypeI]!=-1 || SVTypeI==1)
+            {
+                PSD=calcSD(BeginIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),BeginIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
+                if (Args.MinPosSTD[SVTypeI]!=-1 && PSD>Args.MinPosSTD[SVTypeI]) {Keep=false;return;}
+            }
+            double (*ASSBases)[2]=Args.ASSBases;
+            double (*ASSCoverageMulti)[2]=Args.ASSCoverageMulti;
+            double (*LSDRSs)[2]=Args.LSDRSs;
+            if (SVType=="DUP" or SVType=="INV") if (SS-ST>ST) {Keep=false;return;}
+            if (SVType=="INV")
+            {
+                Keep=true;
+                if (!(HasLeft&&HasRight)) {Keep=false;return;}
+            }
+            if (Score>=(ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0])*0.5 && LS>=LSDRSs[SVTypeI][0]*0.5) {Keep=true;}
+            else
+            {
+                if (Score<(ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1])*0.5) {Keep=false;return;}
+                if (LS<LSDRSs[SVTypeI][1]*0.5) {Keep=false;return;}
+            }
+        }
+        if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
+
+        // Sample["GT"]="0/1";
+        genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+        ID=".";
+        QUAL=".";
+        FILTER="PASS";
+        CHROM=TheContig.Name;
+    }
 }
 
 void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned TypeCount, double CC, Arguments & Args)
