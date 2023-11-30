@@ -1175,6 +1175,21 @@ void clustering(int SVTypeI, string & ContigName, vector<Signature> & SortedSign
         // for (int i=0;i<Clusters.size();++i) Cores.push_back(ClusterCore());
     }
     else if (SortedSignatures.size()>0) brotherClustering2(SortedSignatures,Clusters,Cores,BamStats,Args);
+    // vector<vector<Signature>> HPSortedSignatures;
+    // for (int HP=0;HP<3;++HP) HPSortedSignatures.push_back(vector<Signature>());
+    // for (int i=0;i<SortedSignatures.size();++i)
+    // {
+    //     HPSortedSignatures[SortedSignatures[i].HP].push_back(SortedSignatures[i]);
+    // }
+    // for (int HP=0;HP<3;++HP)
+    // {
+    //     if (HPSortedSignatures[HP].size()>0 && Args.BrotherhoodNearRanges[SVTypeI]==-1)
+    //     {
+    //         brotherClustering(HPSortedSignatures[HP],Clusters,BamStats,Args);
+    //         // for (int i=0;i<Clusters.size();++i) Cores.push_back(ClusterCore());
+    //     }
+    //     else if (HPSortedSignatures[HP].size()>0) brotherClustering2(HPSortedSignatures[HP],Clusters,Cores,BamStats,Args);
+    // }
     // mergeClusters(Clusters,BamStats,Args);
     // simpleClustering(SortedSignatures,Clusters,BamStats,true);
     Args.Log.debug("%s of %s: number of signatures: %lu, number of clusters:%lu:",SVTypeNames[SVTypeI],ContigName.c_str(),SortedSignatures.size(), Clusters.size());

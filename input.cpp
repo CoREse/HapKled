@@ -964,18 +964,18 @@ inline void getInsFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 				assert(Allele.size()==qlen);
 				Signature Temp(0,Tech,1,Begin,Begin+qlen,qname,Quality,Allele.c_str());//for clustering and later processing, the end shall become Begin+qlen(Allele.size())
 				#ifdef DEBUG
-					string MergeString="";
-					for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
-					MergeString+="[";
-					for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
-					if (MergeString.find("5004M33D10682M59D")!=string::npos)
-					{
-						MergeString=MergeString;
-					}
-					MergeString+="]";
-					for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
-					Temp.setMergeString(MergeString);
-					// fprintf(stderr, Temp.MergeString.c_str());
+					// string MergeString="";
+					// for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
+					// MergeString+="[";
+					// for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
+					// if (MergeString.find("5004M33D10682M59D")!=string::npos)
+					// {
+					// 	MergeString=MergeString;
+					// }
+					// MergeString+="]";
+					// for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
+					// Temp.setMergeString(MergeString);
+					// // fprintf(stderr, Temp.MergeString.c_str());
 				#endif
 				Signatures.push_back(Temp);
 			}

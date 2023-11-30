@@ -169,29 +169,6 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	float *CoverageWindows=CoverageWindowsPs[i];
 	SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
 	vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
-	#ifdef DEBUG
-	if (WriteSigDataFileName!="")
-	{
-		if (!ofs.is_open())
-			ofs.open(WriteSigDataFileName.c_str(),ios::binary);
-		boost::archive::binary_oarchive oa(ofs);
-		oa << NumberOfCoverageWindows;
-		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-		oa << AllPrimarySegments;
-		oa << ContigTypeSignatures;
-		continue;
-	}
-	else if (ReadSigDataFileName=="")
-	{
-		if (!ofs.is_open())
-			ofs.open("data/SigData.dat",ios::binary);
-		boost::archive::binary_oarchive oa(ofs);
-		oa << NumberOfCoverageWindows;
-		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-		oa << AllPrimarySegments;
-		oa << ContigTypeSignatures;
-	}
-	#endif
 	
 	vector<vector<Signature>> SignatureClusters;
 	vector<ClusterCore> SignatureClusterCores;
@@ -384,6 +361,9 @@ int main(int argc, const char* argv[])
     OH.addOpt(0, "InvMinPosSTD", 1, "STD", "Filter out clusters that have position stds > MinPosSTD, -1: don't filter.",'i',&(Args.MinPosSTD[3]));
     OH.addOpt(0, "PSTD", 0, "", "Always calculate Pos STD.",'b',&(Args.CalcPosSTD));
     OH.addOpt(0, "FID", 0, "", "Filter out insertions within duplication range that have large PSTD when number of duplication/number of insertion is large(>1/20). Implicates --PSTD.",'b',&(Args.FID));
+    OH.addOpt(0, "HPR", 1, "Ratio", "HPRatio",'F',&(Args.HPRatio));
+    OH.addOpt(0, "HomoR", 1, "Ratio", "HomoRatio.",'F',&(Args.HomoRatio));
+    OH.addOpt(0, "HomoCR", 1, "Ratio", "HomoCutoffRatio.",'F',&(Args.HomoCutoffRatio));
 	#ifdef DEBUG
     OH.addOpt(0, "NOH", 0, "", "No header, for test",'b',&(NoHeader));
 	string WriteSigDataFileName="";
@@ -522,8 +502,8 @@ int main(int argc, const char* argv[])
 				if (!ifs.is_open())
 					ifs.open(ReadSigDataFileName.c_str(),ios::binary);
 				boost::archive::binary_iarchive ia(ifs);
-				ia >> NumberOfCoverageWindows;
-				for (int j=0;j<NumberOfCoverageWindows;++j) ia>>(CoverageWindows[j]);
+				ia >> CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) ia>>(CoverageWindowsPs[i][j]);
 				ia >> AllPrimarySegments;
 				ia >> (TypeSignatures[i]);
 			}
@@ -537,6 +517,31 @@ int main(int argc, const char* argv[])
 			#endif
 			// ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 		}
+		#ifdef DEBUG
+		for (int i=0;i<NSeq;++i)
+		{
+			if (WriteSigDataFileName!="")
+			{
+				if (!ofs.is_open())
+					ofs.open(WriteSigDataFileName.c_str(),ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) oa<<(CoverageWindowsPs[i][j]);
+				oa << ContigsAllPrimarySegments[i];
+				oa << TypeSignatures[i];
+			}
+			else if (ReadSigDataFileName=="")
+			{
+				if (!ofs.is_open())
+					ofs.open("data/SigData.dat",ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) oa<<(CoverageWindowsPs[i][j]);
+				oa << ContigsAllPrimarySegments[i];
+				oa << TypeSignatures[i];
+			}
+		}
+		#endif
 		for (int i=0;i<NSeq;++i)
 		{
 			if (! toCall(Contigs[i],Args))

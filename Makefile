@@ -8,7 +8,7 @@ JOBS := $(shell ps T | sed -n 's%.*$(MAKE_PID).*$(MAKE).* \(-j\|--jobs=\) *\([0-
 CPPFLAGS= --std=c++17 -O3 -fopenmp
 LDFLAGS= -fopenmp
 # CPPFLAGS= --std=c++17 -g -fopenmp -pg
-# LDFLAGS= -fopenmp -lboost_iostreams -lboost_serialization -pg
+LDFLAGS= -fopenmp -lboost_iostreams -lboost_serialization -pg
 HTSLIBDIR=htslib
 HTSLIB=$(HTSLIBDIR)/libhts.a
 SUBMODULES=crelib optutils $(HTSLIB)

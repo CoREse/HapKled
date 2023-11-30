@@ -2,7 +2,7 @@
 #ifndef KLED_KLED_H
 #define KLED_KLED_H
 
-// #define DEBUG
+#define DEBUG
 
 #define COMMA ,
 
@@ -136,6 +136,10 @@ struct Arguments {
 	bool CalcPosSTD=false;
 	bool FID=true;
 	// unsigned long SigReduceBlockSize=1000;
+
+	double HPRatio=0.2;
+	double HomoRatio=0.55;
+	double HomoCutoffRatio=0.95;
 };
 
 #endif

@@ -658,6 +658,13 @@ VCFRecord::VCFRecord()
 VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
 {
+    double HPRatio=Args.HPRatio, HomoRatio=Args.HomoRatio, HomoCutoffRatio=Args.HomoCutoffRatio;
+    SVType=getSVType(SignatureCluster);
+    SVTypeI=SignatureCluster[0].SupportedSV;
+    if (SVTypeI==1) {
+        HPRatio=0, HomoRatio=0.9, HomoCutoffRatio=0.9;
+    }
+    double CutOffRatio=1.0;
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
     Keep=true;
@@ -666,14 +673,25 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     {
         ++HPCounts[SignatureCluster[i].HP];
     }
-    if (float(HPCounts[0]+HPCounts[0])/float(HPCounts[0]+HPCounts[0]+HPCounts[0])>0.7)
+    if (float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2])>HPRatio)
     {
-        resolveHPRecord(HPCounts, TheContig, SignatureCluster, Core, AllPrimarySegments, CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
-        return;
+        float HPRatios[3]={0,0,0};
+        for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
+        if (HPRatios[1]/(HPRatios[1]+HPRatios[2])>HomoRatio || HPRatios[2]/(HPRatios[1]+HPRatios[2])>HomoRatio)
+        {
+            sort(SignatureCluster.begin(),SignatureCluster.end(),[](Signature &a, Signature&b){
+                return a.HP==b.HP? a<b : a.HP<b.HP;
+            });
+            int End0=0;
+            for (;End0<SignatureCluster.size();++End0) if (SignatureCluster[End0].HP!=0) break;
+            SignatureCluster.erase(SignatureCluster.begin(),SignatureCluster.begin()+End0);
+            CutOffRatio=HomoCutoffRatio;
+        }
+        // else CutOffRatio=10000;
+        // resolveHPRecord(HPCounts, TheContig, SignatureCluster, Core, AllPrimarySegments, CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
+        // return;
     }
     statCluster(SignatureCluster,SS,ST,SS2,ST2);
-    SVType=getSVType(SignatureCluster);
-    SVTypeI=SignatureCluster[0].SupportedSV;
     // if (SVTypeI==0 or SVTypeI==1) if (!cflag) {Keep=false;return;}
     calcM3L(SignatureCluster);
     tuple<int,int,int> Site=analyzeSignatureCluster(SignatureCluster, SVType, Args);
@@ -742,11 +760,17 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
             Keep=true;
             if (!(HasLeft&&HasRight)) {Keep=false;return;}
         }
-        if (Score>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
+        // if (Score>=ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0] && LS>=LSDRSs[SVTypeI][0]) {Keep=true;}
+        // else
+        // {
+        //     if (Score<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
+        //     if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
+        // }
+        if (Score>=(ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0])*CutOffRatio && LS>=LSDRSs[SVTypeI][0]*CutOffRatio) {Keep=true;}
         else
         {
-            if (Score<ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1]) {Keep=false;return;}
-            if (LS<LSDRSs[SVTypeI][1]) {Keep=false;return;}
+            if (Score<(ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1])*CutOffRatio) {Keep=false;return;}
+            if (LS<LSDRSs[SVTypeI][1]*CutOffRatio) {Keep=false;return;}
         }
     }
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
@@ -782,6 +806,7 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
 }
 void VCFRecord::resolveHPRecord(int * HPCounts, const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
 {
+    float HomoRatio=0.8f, HomoCutoffRatio=0.5f;
     float HPRatios[3]={0,0,0};
     for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
     sort(SignatureCluster.begin(),SignatureCluster.end(),[](Signature &a, Signature&b){
@@ -790,7 +815,7 @@ void VCFRecord::resolveHPRecord(int * HPCounts, const Contig & TheContig,vector<
     int End0=0;
     for (;End0<SignatureCluster.size();++End0) if (SignatureCluster[End0].HP!=0) break;
     SignatureCluster.erase(SignatureCluster.begin(),SignatureCluster.begin()+End0);
-    if (HPRatios[1]/(HPRatios[1]+HPRatios[2])>0.8 || HPRatios[2]/(HPRatios[1]+HPRatios[2])>0.8)
+    if (HPRatios[1]/(HPRatios[1]+HPRatios[2])>HomoRatio || HPRatios[2]/(HPRatios[1]+HPRatios[2])>HomoRatio)
     {
         statCluster(SignatureCluster,SS,ST,SS2,ST2);
         SVType=getSVType(SignatureCluster);
@@ -857,11 +882,11 @@ void VCFRecord::resolveHPRecord(int * HPCounts, const Contig & TheContig,vector<
                 Keep=true;
                 if (!(HasLeft&&HasRight)) {Keep=false;return;}
             }
-            if (Score>=(ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0])*0.5 && LS>=LSDRSs[SVTypeI][0]*0.5) {Keep=true;}
+            if (Score>=(ASSBases[SVTypeI][0]+WholeCoverage*ASSCoverageMulti[SVTypeI][0])*HomoCutoffRatio && LS>=LSDRSs[SVTypeI][0]*HomoCutoffRatio) {Keep=true;}
             else
             {
-                if (Score<(ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1])*0.5) {Keep=false;return;}
-                if (LS<LSDRSs[SVTypeI][1]*0.5) {Keep=false;return;}
+                if (Score<(ASSBases[SVTypeI][1]+WholeCoverage*ASSCoverageMulti[SVTypeI][1])*HomoCutoffRatio) {Keep=false;return;}
+                if (LS<LSDRSs[SVTypeI][1]*HomoCutoffRatio) {Keep=false;return;}
             }
         }
         if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
