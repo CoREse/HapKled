@@ -2,6 +2,11 @@
 ## Compiling
 Dependencies: openmp and dependencies of htslib (-lz -lm -lbz2 -llzma -lcurl -lpthread -lcrypto -ldeflate)
 
+Here are instructions to get some dependencies from source if systemwide installation is not available:
+- zlib: download from https://github.com/madler/zlib/releases, unzip and cd and ./configure && make && make install prefix=/path/to/your/local
+- libbz2: download from https://sourceforge.net/projects/bzip2/, unzip and cd and make && make install PREFIX=/path/to/your/local
+And export CPATH to make compiler know where the lib is: export CPATH=/path/to/your/local/include:$CPATH
+
 You also need a compiler that supports C++ 17 standard.
 
 To get the kled binary:

@@ -1,6 +1,6 @@
 CC=g++
 AR=ar
-CPPFLAGS= -Wall -O3
+CPPFLAGS= -Wall -O3 -fPIE
 LDFLAGS=
 LIBS=
 

@@ -20,7 +20,7 @@
 #include "StatsManager.hpp"
 #include <math.h>
 #include <algorithm>
-#include "htslib/thread_pool.h"
+#include "htslib/htslib/thread_pool.h"
 #include <set>
 #include "merge.h"
 #include <unordered_map>
