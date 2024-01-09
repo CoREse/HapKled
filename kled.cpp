@@ -169,29 +169,6 @@ void callContigType(Contig *Contigs, vector<Stats> &AllStats, int i, int t,vecto
 	float *CoverageWindows=CoverageWindowsPs[i];
 	SegmentSet &AllPrimarySegments=ContigsAllPrimarySegments[i];
 	vector<vector<Signature>> &ContigTypeSignatures=TypeSignatures[i];
-	#ifdef DEBUG
-	if (WriteSigDataFileName!="")
-	{
-		if (!ofs.is_open())
-			ofs.open(WriteSigDataFileName.c_str(),ios::binary);
-		boost::archive::binary_oarchive oa(ofs);
-		oa << NumberOfCoverageWindows;
-		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-		oa << AllPrimarySegments;
-		oa << ContigTypeSignatures;
-		continue;
-	}
-	else if (ReadSigDataFileName=="")
-	{
-		if (!ofs.is_open())
-			ofs.open("data/SigData.dat",ios::binary);
-		boost::archive::binary_oarchive oa(ofs);
-		oa << NumberOfCoverageWindows;
-		for (int j=0;j<NumberOfCoverageWindows;++j) oa<<(CoverageWindows[j]);
-		oa << AllPrimarySegments;
-		oa << ContigTypeSignatures;
-	}
-	#endif
 	
 	vector<vector<Signature>> SignatureClusters;
 	vector<ClusterCore> SignatureClusterCores;
@@ -522,8 +499,8 @@ int main(int argc, const char* argv[])
 				if (!ifs.is_open())
 					ifs.open(ReadSigDataFileName.c_str(),ios::binary);
 				boost::archive::binary_iarchive ia(ifs);
-				ia >> NumberOfCoverageWindows;
-				for (int j=0;j<NumberOfCoverageWindows;++j) ia>>(CoverageWindows[j]);
+				ia >> CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) ia>>(CoverageWindowsPs[i][j]);
 				ia >> AllPrimarySegments;
 				ia >> (TypeSignatures[i]);
 			}
@@ -537,6 +514,31 @@ int main(int argc, const char* argv[])
 			#endif
 			// ContigsAllPrimarySegments.push_back(AllPrimarySegments);
 		}
+		#ifdef DEBUG
+		for (int i=0;i<NSeq;++i)
+		{
+			if (WriteSigDataFileName!="")
+			{
+				if (!ofs.is_open())
+					ofs.open(WriteSigDataFileName.c_str(),ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) oa<<(CoverageWindowsPs[i][j]);
+				oa << ContigsAllPrimarySegments[i];
+				oa << TypeSignatures[i];
+			}
+			else if (ReadSigDataFileName=="")
+			{
+				if (!ofs.is_open())
+					ofs.open("data/SigData.dat",ios::binary);
+				boost::archive::binary_oarchive oa(ofs);
+				oa << CoverageWindowsNs[i];
+				for (int j=0;j<CoverageWindowsNs[i];++j) oa<<(CoverageWindowsPs[i][j]);
+				oa << ContigsAllPrimarySegments[i];
+				oa << TypeSignatures[i];
+			}
+		}
+		#endif
 		for (int i=0;i<NSeq;++i)
 		{
 			if (! toCall(Contigs[i],Args))

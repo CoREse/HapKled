@@ -320,11 +320,12 @@ vector<double> scoring(vector<Signature> &SignatureCluster,int SVLen)
     return Scores;
 }
 
-int getLengthSDRatioScore(vector<Signature> &SignatureCluster,int SVLen, double * SD=NULL)
+int getLengthSDRatioScore(vector<Signature> &SignatureCluster, int SVLen, double * SD=NULL)
 {
     double LengthSD=calcSD(LengthIter<int,vector<Signature>::iterator>(SignatureCluster.begin()),LengthIter<int,vector<Signature>::iterator>(SignatureCluster.end()));
     if (SD!=NULL) *SD=LengthSD;
     return MAX(0.0,100.0-(LengthSD/(double)SVLen*100.0));
+    // return MAX(0.0,100.0-(LengthSD/(double)(max(SVLen,500))*100.0));
     int SizePenalty=0;
     // if (SignatureCluster.size()<4) SizePenalty=4-SignatureCluster.size();
     // return MAX(0.0,100.0-(LengthSD/(double)SVLen*500.0-SizePenalty));
@@ -628,7 +629,7 @@ VCFRecord::VCFRecord()
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
 {}
 VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
-: SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
+: SVLen(0),SVType(),CN(0),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
 {
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
@@ -718,6 +719,21 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     QUAL=".";
     FILTER="PASS";
     CHROM=TheContig.Name;
+    if (SVTypeI==2)
+    {
+        // double CCN=0;
+        // for (int i=0;i<SignatureCluster.size();++i)
+        // {
+        //     CCN+=SignatureCluster[i].CN;
+        // }
+        // CCN/=(double)(SignatureCluster.size());
+        // CN=int(CCN+0.5)
+        for (int i=0;i<SignatureCluster.size();++i)
+        {
+            CN=max(CN, SignatureCluster[i].CN);
+        }
+        // CN=int((double)(SS)/(double)(ST)+0.5);
+    }
     #ifdef DEBUG
     MergeStrings="";
     if (SVType=="DEL")
@@ -784,7 +800,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     free(TSeq);
     ++Pos;++End;//trans to 1-based
     if (INFO!="") INFO+=";";
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)+";PSTD="+to_string(PSD)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+(SVType=="DUP"?";CN="+to_string(CN):"")+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)+";PSTD="+to_string(PSD)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
 }
 
 VCFRecord::operator std::string() const
@@ -881,6 +897,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","LR","L,R,LR","1","String"));
     Header.addHeaderEntry(HeaderEntry("INFO","CV","Nearby coverage for genotyping.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","CC","Average coverage of this contig.","1","Float"));
+    Header.addHeaderEntry(HeaderEntry("INFO","CN","Copy number for duplication alleles(normal=1).","1","Float"));//As defined in VCFv4.4, the info copy number shall be the CN for the allele
     Header.addHeaderEntry(HeaderEntry("INFO","CR","Core ratio.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","M3L","(min length, medium length, max length).","3","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","PSTD","Position STD, -1 if not caclulated.","1","Float"));
