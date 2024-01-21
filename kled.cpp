@@ -15,7 +15,7 @@
 #include <functional>
 #include <sstream>
 #include <iostream>
-#include "htslib/thread_pool.h"
+#include "htslib/htslib/thread_pool.h"
 #ifdef DEBUG
 #include <fstream>
 

@@ -20,7 +20,7 @@
 #include "StatsManager.hpp"
 #include <math.h>
 #include <algorithm>
-#include "htslib/thread_pool.h"
+#include "htslib/htslib/thread_pool.h"
 #include <set>
 #include "merge.h"
 #include <unordered_map>
@@ -523,8 +523,8 @@ bool conformDup(int S1, int E1, int S2, int E2, double Threshold=0.3)//from svim
 {
 	// return false;
 	int L1=E1-S1, L2=E2-S2;
-	double LengthRatio=double(abs(L1-L2))/(double(max(L1,L2)));
-	double PositionRatio=abs(double(E1+S1)/2.0-double(E2+S2)/2.0)/900.0;
+	double LengthRatio=double(abs(L1-L2))/(double(min(200,max(L1,L2))));
+	double PositionRatio=abs(double(E1+S1)/2.0-double(E2+S2)/2.0)/(double(max(L1,L2)));
 	if (LengthRatio + PositionRatio<Threshold) return true;
 	// if (LengthRatio<Threshold && PositionRatio<Threshold) return true;
 	return false;
@@ -552,10 +552,11 @@ void searchDupFromAligns(bam1_t *br,int HP,Contig& TheContig,vector<Alignment> &
 				FormerI=j;
 				LatterI=i;
 			}
-			int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
+			// int InnerGap=Aligns[j].InnerPos-Aligns[i].InnerEnd;
 			if (Aligns[LatterI].Pos<Aligns[FormerI].End)
 			{
-				int DupEnd=Aligns[FormerI].End+InnerGap;
+				// int DupEnd=Aligns[FormerI].End+InnerGap;//doesn't make any sense of any perspect
+				int DupEnd=Aligns[FormerI].End;
 				int DupLength=DupEnd-Aligns[LatterI].Pos;
 				if (DupLength>=Args.MinSVLen)// && DupLength<100000)
 				{
@@ -586,7 +587,8 @@ void searchDupFromAligns(bam1_t *br,int HP,Contig& TheContig,vector<Alignment> &
 							{
 								Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
 								TempSignature.HP=HP;
-								TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+								// TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+								TempSignature.setCN(CurrentN);//As defined in VCFv4.4, the info copy number shall be the CN for the allele
 								TempSignature.Covered=Covered;
 								// statCoverage(CurrentStart,CurrentEnd,CoverageWindowsPs[CurrentCid],CoverageWindowsNs[CurrentCid],Mut,Args,-1);
 								// pthread_mutex_lock(&Mut->m_Sig[2]);
@@ -595,7 +597,7 @@ void searchDupFromAligns(bam1_t *br,int HP,Contig& TheContig,vector<Alignment> &
 							}
 							CurrentStart=Aligns[LatterI].Pos;
 							CurrentEnd=DupEnd;
-							CurrentN=1;
+							CurrentN=2;
 							Covered=false;
 							CurrentQuality=0.5*(Aligns[FormerI].getQuality()+Aligns[LatterI].getQuality());
 							if (Aligns[LatterI].End> Aligns[FormerI].Pos) Covered=true;
@@ -648,7 +650,7 @@ void searchDupFromAligns(bam1_t *br,int HP,Contig& TheContig,vector<Alignment> &
 		{
 			Signature TempSignature(2,Tech,2,CurrentStart,CurrentEnd,bam_get_qname(br),CurrentQuality);
 			TempSignature.HP=HP;
-			TempSignature.setCN(CurrentN+1);//assume the other strand's CN is 1
+			TempSignature.setCN(CurrentN);
 			TempSignature.Covered=Covered;
 			// statCoverage(CurrentStart,CurrentEnd,CoverageWindowsPs[CurrentCid],CoverageWindowsNs[CurrentCid],Mut,Args,-1);
 			// pthread_mutex_lock(&Mut->m_Sig[2]);
@@ -963,20 +965,20 @@ inline void getInsFromCigar(bam1_t * br, int Tech, vector<Signature>& Signatures
 				}
 				assert(Allele.size()==qlen);
 				Signature Temp(0,Tech,1,Begin,Begin+qlen,qname,Quality,Allele.c_str());//for clustering and later processing, the end shall become Begin+qlen(Allele.size())
-				#ifdef DEBUG
-					// string MergeString="";
-					// for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
-					// MergeString+="[";
-					// for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
-					// if (MergeString.find("5004M33D10682M59D")!=string::npos)
-					// {
-					// 	MergeString=MergeString;
-					// }
-					// MergeString+="]";
-					// for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
-					// Temp.setMergeString(MergeString);
-					// // fprintf(stderr, Temp.MergeString.c_str());
-				#endif
+				// #ifdef DEBUG
+				// 	string MergeString="";
+				// 	for (int k=0;k<ItoD[BeginI];++k) MergeString+=MergeStrings[k];
+				// 	MergeString+="[";
+				// 	for (int k=ItoD[BeginI];k<ItoD[i];++k) MergeString+=MergeStrings[k];
+				// 	if (MergeString.find("5004M33D10682M59D")!=string::npos)
+				// 	{
+				// 		MergeString=MergeString;
+				// 	}
+				// 	MergeString+="]";
+				// 	for (int k=ItoD[i];k<MergeStrings.size();++k) MergeString+=MergeStrings[k];
+				// 	Temp.setMergeString(MergeString);
+				// 	// fprintf(stderr, Temp.MergeString.c_str());
+				// #endif
 				Signatures.push_back(Temp);
 			}
 		}

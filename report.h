@@ -44,6 +44,7 @@ class VCFRecord
 {
     int SVLen;
     std::string SVType;
+    int CN;
     int SS;
     int ST;
     int SS2;

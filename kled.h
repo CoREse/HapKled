@@ -22,7 +22,7 @@ const int NumberOfSVTypes=4;//Default is static so is fine.
 const char * const SVTypeNames[NumberOfSVTypes]={"DEL","INS","DUP","INV"};//Default is static so is fine.
 
 struct Arguments {
-	const char * Version="1.2.8";
+	const char * Version="1.2.9";
 	bool ShowVersion=false;
 	bool ShowHelp=false;
 	cre::Logger Log;
@@ -52,24 +52,24 @@ struct Arguments {
 	int MaxClusterSize=1000;//will limit (sampling) Cluster size to [MaxClusterSize, 2*MaxClusterSize)
 	int ClusteringMaxMergeRange=20000;
 	int ClusteringBatchSize=10000;
-    double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.7,0.1};//For SV Types
-    int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={50,150,200,100};
-    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.3,0.1};//For SV Types
-    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={60,50,100,0};
+    double BrotherhoodTypeRatios[NumberOfSVTypes]={1.5,0.5,0.2,0.1};//For SV Types
+    int BrotherhoodTypeForceBrothers[NumberOfSVTypes]={50,150,0,100};
+    double BrotherhoodTypeLengthRatios[NumberOfSVTypes]={0.3,0.1,0.1,0.1};//For SV Types
+    int BrotherhoodTypeLengthMinEndurance[NumberOfSVTypes]={10,20,0,0};
     int BrotherhoodNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
     int BrotherhoodTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.5,1.2,0.7,0.1};//For SV Types
-       int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={50,10,200,100};
-    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.3,0.3,0.3,0.1};//For SV Types
-       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={60,0,100,0};
+    double BrotherhoodCLRTypeRatios[NumberOfSVTypes]={1.5,1.2,0.2,0.1};//For SV Types
+       int BrotherhoodCLRTypeForceBrothers[NumberOfSVTypes]={50,10,0,100};
+    double BrotherhoodCLRTypeLengthRatios[NumberOfSVTypes]={0.3,0.3,0.1,0.1};//For SV Types
+       int BrotherhoodCLRTypeLengthMinEndurance[NumberOfSVTypes]={60,0,0,0};
        int BrotherhoodCLRNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
        int BrotherhoodCLRTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodCLRTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
-    double BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,0.7,0.1};//For SV Types
-    int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,200,100};
-    double BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.3,0.1};//For SV Types
-    int BrotherhoodCCSTypeLengthMinEndurance[NumberOfSVTypes]={10,50,100,0};
+    double BrotherhoodCCSTypeRatios[NumberOfSVTypes]={2.0,2.5,0.2,0.1};//For SV Types
+    int BrotherhoodCCSTypeForceBrothers[NumberOfSVTypes]={100,200,0,100};
+    double BrotherhoodCCSTypeLengthRatios[NumberOfSVTypes]={0.5,0.5,0.1,0.1};//For SV Types
+    int BrotherhoodCCSTypeLengthMinEndurance[NumberOfSVTypes]={10,50,0,0};
        int BrotherhoodCCSNearRanges[NumberOfSVTypes]={-1,-1,-1,-1};//If -1, use brotherhoodcluster1
        int BrotherhoodCCSTypeForceBrothers2[NumberOfSVTypes]={10,50,500,100};
     double BrotherhoodCCSTypeLengthRatios2[NumberOfSVTypes]={0.5,0.3,0.1,0.5};//For SV Types
@@ -78,15 +78,15 @@ struct Arguments {
 	double ASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{1,0}//DEL
 	,{1,0}//INS
-	,{4,0}//DUP
+	,{0,1}//DUP
 	,{2,1}};//INV
 	double ASSCoverageMulti[NumberOfSVTypes][2]={{0.28,0.16},
 	{0.19,0.14},
-	{0.13,0.1},
+	{0.23,0.12},
 	{0,0.18}};
 	double LSDRSs[NumberOfSVTypes][2]={{70, 95},//For Legnth Standard Deviation Ratio Scores(100-ratio*100)
 	{60,90},
-	{85,99},
+	{90,96},
 	{98,0}};
 	double CLRASSBases[NumberOfSVTypes][2]=//Layers of base filter of the addition of supporting segmentations and templates
 	{{1,0}//DEL

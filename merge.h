@@ -2,7 +2,7 @@
 #include <vector>
 #include "signature.h"
 #include <unordered_map>
-#include "htslib/thread_pool.h"
+#include "htslib/htslib/thread_pool.h"
 
 struct AlignmentSigs
 {

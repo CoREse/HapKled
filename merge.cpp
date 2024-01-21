@@ -1,8 +1,9 @@
 #include "merge.h"
 #include <limits.h>
-#include "htslib/thread_pool.h"
+#include "htslib/htslib/thread_pool.h"
 #include <algorithm>
 #include <set>
+#include <pthread.h>
 
 using namespace std;
 
