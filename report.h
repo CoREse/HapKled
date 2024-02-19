@@ -96,4 +96,6 @@ void addKledEntries(VCFHeader & Header);
 
 double getAverageCoverage(int Begin, int End, float * CoverageWindows, Arguments & Args, float* CoverageWindowsSums=NULL, float* CheckPoints=NULL, int CheckPointInterval=0);
 
+void HPClustersDistinction(std::vector<Signature> &Cluster, std::vector<std::vector<Signature>> &HPClusters, Arguments& Args);
+
 #endif

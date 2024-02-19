@@ -740,13 +740,21 @@ int main(int argc, const char* argv[])
 			Log.debug("%s: %d\n, cigardel: %d, cigarins: %d, cigardup: %d, drpdel: %d, drpdup: %d, clipdel: %d, clipins: %d, clipdup: %d, clipinv: %d, NGS: %d, SMRT: %d. Contig Size:%ld, Average Coverage: %lf, Total Average Coverage: %lf",Contigs[i].Name.c_str(),totalsig,cigardel, cigarins, cigardup, drpdel, drpdup, clipdel, clipins, clipdup, clipinv, NGS, SMRT, Contigs[i].Size, WholeCoverage, TotalCoverage);
 
 			vector<VCFRecord> Records;
+			vector<vector<Signature>> HPClusters;
+			for (int j=0;j<3;++j) HPClusters.push_back(vector<Signature>());
 			for (int j=0;j<SignatureClusters.size();++j)
 			{
 				// ++Times[omp_get_thread_num()];
 				if (SignatureClusters[j].size()==0) continue;
 				ClusterCore Core;
 				if (SignatureClusterCores.size()!=0) Core=SignatureClusterCores[j];
-				Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+				//TODO: add length diff / lstd devide between haps
+				HPClustersDistinction(SignatureClusters[j],HPClusters,Args);
+				if (HPClusters[1].size()!=0){
+					Records.push_back(VCFRecord(Contigs[i],HPClusters[1], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+					Records.push_back(VCFRecord(Contigs[i],HPClusters[2], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
+				}
+				else Records.push_back(VCFRecord(Contigs[i],SignatureClusters[j], Core, AllPrimarySegments,CoverageWindows, TotalCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval));
 			}
 			sort(Records.data(),Records.data()+Records.size());
 

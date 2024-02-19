@@ -674,6 +674,33 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     {
         ++HPCounts[SignatureCluster[i].HP];
     }
+    //HP GT hypothesis testing
+    bool HPGTKeep=false;
+    // int HPCount=HPCounts[1]+HPCounts[2];
+    // double HPPortion=((double)HPCount)/((double)(HPCounts[0]+HPCount));
+    // double Alpha=0.0005;
+    // double PRandomOrHomo=0;
+    // int MinHP=min(HPCounts[1],HPCounts[2]);
+    // double MultipleP=pow(0.5,HPCount);
+    // for (int i=0;i<=MinHP;++i)
+    // {
+    //     // tgamma(i+1)==i!
+    //     //binominal distribution
+    //     double P=1;
+    //     for (int j=HPCount-i+1;j<=HPCount;++j) P*=(double)j;
+    //     for (int j=1;j<=i;++j) P/=(double)j;
+    //     P*=MultipleP;
+    //     PRandomOrHomo+=P;
+    // }
+    // if (PRandomOrHomo<Alpha)
+    // {
+    //     HPGTKeep=true;
+    //     Sample["GT"]="0/1";
+    //     // if (HPCounts[1]>HPCounts[2]) Sample["GT"]="1|0";
+    //     // else Sample["GT"]="0|1";
+    // }
+
+    //HP Ratio
     if (float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2])>HPRatio)
     {
         float HPRatios[3]={0,0,0};
@@ -743,6 +770,7 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     }
     if (Args.NoFilter) Keep=true;
     else if (ST<2) {Keep=false;return;}
+    else if (HPGTKeep) Keep=true;
     else if (Args.Filter2ST) Keep=true;
     else if (ST2>30) Keep=true;
     else
@@ -776,7 +804,7 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     }
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
-    genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+    if (!HPGTKeep) genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
     ID=".";
     QUAL=".";
     FILTER="PASS";
@@ -1064,4 +1092,61 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("ALT","DUP","Duplication"));
     Header.addHeaderEntry(HeaderEntry("FORMAT","GT","Genotype","1","String"));
     // Header.addHeaderEntry(HeaderEntry("INFO","SCORES","Scores, supported reads, supported signatures, (begin sd+end sd)/2, length sd, number of signature source","6","Integer"));
+}
+
+void HPClustersDistinction(vector<Signature> &Cluster, vector<vector<Signature>> &HPClusters, Arguments& Args)
+{
+    HPClusters[1].clear();
+    HPClusters[2].clear();
+    double HP1Mean=0, HP2Mean=0;
+    int H1Size=0,H2Size=0;
+    double HP1SD=0, HP2SD=0;
+    
+    int Size=0;
+    double Mean=0;
+    for (int i=0;i<Cluster.size();++i)
+    {
+        if (Cluster[i].HP==1)
+        {
+            HP1Mean+=Cluster[i].Length;
+            ++H1Size;
+        }
+        if (Cluster[i].HP==2)
+        {
+            HP2Mean+=Cluster[i].Length;
+            ++H2Size;
+        }
+    }
+    HP1Mean/=(double)H1Size;
+    HP2Mean/=(double)H2Size;
+    double SD=0;
+    for (int i=0;i<Cluster.size();++i)
+    {
+        if (Cluster[i].HP==1)
+        {
+            HP1SD+=pow(((double)Cluster[i].Length-HP1Mean),2.0);
+        }
+        if (Cluster[i].HP==2)
+        {
+            HP2SD+=pow(((double)Cluster[i].Length-HP1Mean),2.0);
+        }
+    }
+    HP1SD/=(double)H1Size;
+    HP2SD/=(double)H2Size;
+    double MaxSD=max(HP1SD,HP2SD);
+    if (abs(HP1Mean-HP2Mean)>3.0*MaxSD)
+    {
+        for (int i=0;i<Cluster.size();++i)
+        {
+            if (Cluster[i].HP==0)
+            {
+                HPClusters[1].push_back(Cluster[i]);
+                HPClusters[2].push_back(Cluster[i]);
+            }
+            else
+            {
+                HPClusters[Cluster[i].HP].push_back(Cluster[i]);
+            }
+        }
+    }
 }
