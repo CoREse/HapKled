@@ -1,177 +1,103 @@
-Threads=8
+#!/usr/bin/bash
+Threads=32
 mkdir data
 
+if [ -z "$DataDir" ];then
+    >&2 echo "`date '+[%Y-%m-%d %H:%M:%S]'` You should first provide the path of the data directory that contains all the required data by setting the environment variable DataDir."
+fi
 ##########################
 #ONT
 ##########################
+GSG=""
 
-Reference=$DATAFOLDER/hs37d5.fa.gz
-Programs="cuteSV sniffles svim kled"
-Data=ONT
-Covs="5x 10x 20x 30x 52x"
-Ss=(2 3 4 5 10)
+DataSet="ONT"
+Programs="HapKled kled cuteSV sniffles duet"
+Covs="30x 20x 10x 5x"
+Ss=(5 4 3 2)
 Si=0
 
 for Cov in $Covs
 do
     s=${Ss[Si]}
-    NAME="HG2_"${Data}"_"${Cov}
-    if [ "$Cov" == "52x" ];then
-        Cov=""
-    else
-        Cov=.$Cov
-    fi
-    Alignment=$BAMFOLDER/HG002_GRCh37_ONT-UL_UCSC_20200508.phased${Cov}.bam
-    for ProgramName in $Programs
-    do
-        bash runcommand.sh $ProgramName $NAME $Reference $Alignment $Threads $s $Others
-
-        GREPSTR='INV\|BND\|DUP'
-        SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|INS'
-        SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|DEL'
-        SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-    done
-    Si=$(($Si+1))
-done
-
-##########################
-#CLR
-##########################
-
-Reference=$DATAFOLDER/hs37d5.fa.gz
-Programs="cuteSV sniffles svim kled"
-Data=CLR
-Covs="5x 10x 20x 30x 42x"
-Ss=(2 3 4 4 5)
-Si=0
-
-for Cov in $Covs
-do
-    s=${Ss[Si]}
-    NAME="HG2_"${Data}"_"${Cov}
-    if [ "$Cov" == "42x" ];then
-        Cov=""
-    else
-        Cov=.$Cov
-    fi
-    Alignment=$BAMFOLDER/HG002_CLR${Cov}.bam
-    for ProgramName in $Programs
-    do
-        bash runcommand.sh $ProgramName $NAME $Reference $Alignment $Threads $s $Others
-
-        GREPSTR='INV\|BND\|DUP'
-        SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|INS'
-        SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|DEL'
-        SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-    done
-    Si=$(($Si+1))
-done
-
-##########################
-#CCS
-##########################
-
-Reference=$DATAFOLDER/hs37d5.fa.gz
-Programs="cuteSV sniffles svim kled"
-Data=CCS
-Covs="5x 10x 20x 30x"
-Ss=(1 2 2 3)
-Si=0
-
-for Cov in $Covs
-do
-    s=${Ss[Si]}
-    NAME="HG2_"${Data}"_"${Cov}
-    if [ "$Cov" == "30x" ];then
-        Cov=""
-    else
-        Cov=.$Cov
-    fi
-    Alignment=$BAMFOLDER/HG002_CCS$Cov.bam
-    for ProgramName in $Programs
-    do
-        bash runcommand.sh $ProgramName $NAME $Reference $Alignment $Threads $s $Others
-
-        GREPSTR='INV\|BND\|DUP'
-        SUFFIX=
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|INS'
-        SUFFIX=".DEL"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.DEL.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|DEL'
-        SUFFIX=".INS"
-        GS="$DATAFOLDER/HG002_SVs_Tier1_v0.6.INS.vcf.gz --includebed $DATAFOLDER/HG002_SVs_Tier1_v0.6.bed"
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-    done
-    Si=$(($Si+1))
-done
-##########################
-#SIMs
-##########################
-
-Reference=../simulation/GRCh38_chromosomes.fa
-Programs="cuteSV sniffles svim kled"
-Data=SIM
-Covs="5x 10x 20x 30x"
-Ss=(2 3 4 4)
-Si=0
-
-Chr="chr1"
-
-for Cov in $Covs
-do
-    s=${Ss[Si]}
-    NAME="HG2_"${Data}${Chr}"_"${Cov}
+    NAME="HG2_"${DataSet}${Chr}${Detag}"_"${Cov}
+    DataType="ONT"
+    Reference=$DataDir/hs37d5.fa
+    Alignment="$DataDir/bams/HG002_GRCh37_ONT-UL_UCSC_20200508.phased.${Cov}.bam"
+    INCLUDEBED=" --includebed $DataDir/GIAB/HG002_SVs_Tier1_v0.6.bed"
     Cov=_$Cov
-    if [ "$Chr" == "chr1" ];then
-        Reference=../simulation/GRCh38_chr1.fa
-    fi
-    Alignment=../simulation/SG${Chr}_bam${Cov}/sim.srt${Detag}.bam
     for ProgramName in $Programs
     do
-        bash runcommand.sh $ProgramName $NAME $Reference $Alignment $Threads $s $OtherParas
-        
-        if [ "$Chr" == "chr1" ];then
-            INCLUDEBED=" --includebed ../simulation/GRCh38_chromosomes.1.bed"
-        fi
-        GREPSTR='BND'
+        bash runcommand.sh $ProgramName $DataType $NAME $Reference $Alignment $Threads $s $OtherParas
+    done
+    for ProgramName in $Programs
+    do
+        GREPSTR='=BND\|=INV\|=DUP'
         SUFFIX=
-        GS=../simulation/AllSVs.unphased.vcf.gz$INCLUDEBED
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|INS'
+        GS=$DataDir/GIAB/HG002_SVs_Tier1_v0.6.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INV\|=BND\|=DUP\|=INS'
         SUFFIX=".DEL"
-        GS=../simulation/DELs.unphased.vcf.gz$INCLUDEBED
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INV\|BND\|DUP\|DEL'
+        GS=$DataDir/GIAB/HG002_SVs_Tier1_v0.6.DEL.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INV\|=BND\|=DUP\|=DEL'
         SUFFIX=".INS"
-        GS=../simulation/INSs.unphased.vcf.gz$INCLUDEBED
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INS\|INV\|BND\|DEL'
+        GS=$DataDir/GIAB/HG002_SVs_Tier1_v0.6.INS.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+    done
+    Si=$(($Si+1))
+done
+
+##########################
+#SIMONT
+##########################
+
+
+DataSet="SIMONT"
+Programs="HapKled kled cuteSV sniffles duet"
+Covs="30x"
+Ss=(5)
+
+Si=0
+
+for Cov in $Covs
+do
+    s=${Ss[Si]}
+    NAME="HG2_"${DataSet}${Chr}${Detag}"_"${Cov}
+    DataType="ONT"
+    Reference=$DataDir/GRCh38_chromosomes.fa
+    if [ "$Cov" != "" ];then
+        Alignment="$DataDir/bams/SG_bam_${Cov}/sim.srt.bam"
+    else
+        continue
+    fi
+    INCLUDEBED=""
+    Cov=_$Cov
+    for ProgramName in $Programs
+    do
+        bash runcommand.sh $ProgramName $DataType $NAME $Reference $Alignment $Threads $s $OtherParas
+    done
+    for ProgramName in $Programs
+    do
+        GREPSTR='=BND'
+        SUFFIX=
+        GS=/home/user/zhangzhendong/workspace/kled/exp/wholehybrid/starredsucceededrunPbWhole4171692cu26/work/AllSVs.unphased.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INV\|=BND\|=DUP\|=INS'
+        SUFFIX=".DEL"
+        GS=/home/user/zhangzhendong/workspace/kled/exp/wholehybrid/starredsucceededrunPbWhole4171692cu26/work/DELs.unphased.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INV\|=BND\|=DUP\|=DEL'
+        SUFFIX=".INS"
+        GS=/home/user/zhangzhendong/workspace/kled/exp/wholehybrid/starredsucceededrunPbWhole4171692cu26/work/INSs.unphased.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INS\|=INV\|=BND\|=DEL'
         SUFFIX=".DUP"
-        GS=../simulation/DUPs.unphased.vcf.gz$INCLUDEBED
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
-        GREPSTR='INS\|DUP\|BND\|DEL'
+        GS=/home/user/zhangzhendong/workspace/kled/exp/wholehybrid/starredsucceededrunPbWhole4171692cu26/work/DUPs.unphased.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GREPSTR='=INS\|=DUP\|=BND\|=DEL'
         SUFFIX=".INV"
-        GS=../simulation/INVs.unphased.vcf.gz$INCLUDEBED
-        bash bench.sh $ProgramName $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
+        GS=/home/user/zhangzhendong/workspace/kled/exp/wholehybrid/starredsucceededrunPbWhole4171692cu26/work/INVs.unphased.vcf.gz$INCLUDEBED
+        bash bench.sh $ProgramName $Reference $GREPSTR "$GS" data/${ProgramName}_$NAME $s $SUFFIX
     done
     Si=$(($Si+1))
 done

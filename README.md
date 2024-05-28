@@ -1,5 +1,24 @@
-# Kled: a SV caller
-## Compiling
+# Kled: a haplotype-aware structural variant calling approach for Oxford Nanopore sequencing data
+## Usage
+Before running HapKled you should first compile (see compiling the haplotype-aware kled) the haplotype-aware kled and put the path of it to the environment variable HapAwareKled.
+```
+export HapAwareKled=/path/to/hap-aware-kled
+```
+And you also need an installed Clair3 and Whatshap, and export the path of the Clair3 models to environment variable Clair3ModelPath.
+```
+export Clair3ModelPath=/path/to/bin/models
+```
+HapKled need a reference file (fasta) and at least one bam (sam/bam/cram) file that stores the mapped reads to call SVs, and output a VCF file to the standard output.
+```
+HapKled -R Refernce.fa Sample.bam > SVs.vcf
+```
+
+For the description of all parameters:
+```
+HapKled --help
+```
+
+## Compiling the haplotype-aware kled
 Dependencies: openmp and dependencies of htslib (-lz -lm -lbz2 -llzma -lcurl -lpthread -lcrypto -ldeflate)
 
 Here are instructions to get some dependencies from source if systemwide installation is not available:
@@ -24,18 +43,8 @@ make install
 #or if you want to install to a place other than /usr/local:
 PREFIX=PATH_YOU_SELECT make install
 ```
-## Usage
-Kled need a reference file (fasta) and at least one bam (sam/bam/cram) file that stores the mapped reads to call SVs, and output a VCF file to the standard output.
-```
-kled -R Refernce.fa Sample.bam > SVs.vcf
-```
-The default parameters are tuned for ONT data, if your inputs are CLR or CCS data, consider add --CLR or --CCS option to get a better result:
-```
-kled -R Reference.fa --CCS CCS.bam > SVs.vcf
-kled -R Reference.fa --CLR CLR.bam > SVs.vcf
-```
 
-For the description of all parameters:
-```
-kled --help
-```
+## Experiments
+You should run the run.sh in the experiments/simulation/run.sh to get the simulated bam, and along with it, put the downloaded bams and fastas to the $DataDir.
+
+Then run experiments/benchmark/run.sh to get the benchmark results.
