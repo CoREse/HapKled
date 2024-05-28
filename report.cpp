@@ -659,12 +659,12 @@ VCFRecord::VCFRecord()
 VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureCluster, ClusterCore &Core, SegmentSet & AllPrimarySegments, float* CoverageWindows, double WholeCoverage, Arguments& Args, float * CoverageWindowsSums, float * CheckPoints, int CheckPointInterval)
 : SVLen(0),SVType(),CN(0),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),PSD(-1),Keep(false)
 {
-    double HPRatio=Args.HPRatio, HomoRatio=Args.HomoRatio, HomoCutoffRatio=Args.HomoCutoffRatio;
     SVType=getSVType(SignatureCluster);
     SVTypeI=SignatureCluster[0].SupportedSV;
-    if (SVTypeI==1) {
-        HPRatio=0, HomoRatio=0.9, HomoCutoffRatio=0.9;
-    }
+    double HPRatio=Args.HPRatio[SVTypeI], HomoRatio=Args.HomoRatio[SVTypeI], HomoMinusRatio=Args.HomoMinusRatio[SVTypeI];
+    // if (SVTypeI==1) {
+        // HPRatio=0.6, HomoRatio=0.8, HomoCutoffRatio=0.9;
+    // }
     double CutOffRatio=1.0;
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
@@ -678,7 +678,7 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     bool HPGTKeep=false;
     // int HPCount=HPCounts[1]+HPCounts[2];
     // double HPPortion=((double)HPCount)/((double)(HPCounts[0]+HPCount));
-    // double Alpha=0.0005;
+    // double Alpha=0.05;
     // double PRandomOrHomo=0;
     // int MinHP=min(HPCounts[1],HPCounts[2]);
     // double MultipleP=pow(0.5,HPCount);
@@ -686,22 +686,23 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     // {
     //     // tgamma(i+1)==i!
     //     //binominal distribution
-    //     double P=1;
-    //     for (int j=HPCount-i+1;j<=HPCount;++j) P*=(double)j;
-    //     for (int j=1;j<=i;++j) P/=(double)j;
-    //     P*=MultipleP;
-    //     PRandomOrHomo+=P;
+    //     unsigned long long P=1;
+    //     for (int j=HPCount-i+1;j<=HPCount;++j) P*=j;
+    //     for (int j=1;j<=i;++j) P/=j;
+    //     double dP=((double)P)*MultipleP;
+    //     PRandomOrHomo+=dP;
     // }
     // if (PRandomOrHomo<Alpha)
     // {
-    //     HPGTKeep=true;
+    //     // HPGTKeep=true;
     //     Sample["GT"]="0/1";
     //     // if (HPCounts[1]>HPCounts[2]) Sample["GT"]="1|0";
     //     // else Sample["GT"]="0|1";
     // }
 
     //HP Ratio
-    if (float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2])>HPRatio)
+    double SHPRatio=float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2]);
+    if (SHPRatio>HPRatio)
     {
         float HPRatios[3]={0,0,0};
         for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
@@ -713,11 +714,27 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
             int End0=0;
             for (;End0<SignatureCluster.size();++End0) if (SignatureCluster[End0].HP!=0) break;
             SignatureCluster.erase(SignatureCluster.begin(),SignatureCluster.begin()+End0);
-            CutOffRatio=HomoCutoffRatio;
+            // CutOffRatio=HomoCutoffRatio;
+            CutOffRatio-=Args.HomoMinus[SVTypeI];
+            CutOffRatio-=HomoMinusRatio*(SHPRatio-HPRatio);
+            // CutOffRatio=0.9;
+            // if (CutOffRatio<HomoCutoffRatio) fprintf(stderr,"CutOffRatio:%lf, HomoCutoffRatio:%lf, SHPRatio:%lf, HPRatio:%lf",CutOffRatio, HomoCutoffRatio, SHPRatio, HPRatio);
+        }
+        // else CutOffRatio-=0.01*(SHPRatio-HPRatio);
+        else
+        {
+            CutOffRatio-=Args.NonHomoMinus[SVTypeI];
+            CutOffRatio-=Args.NonHomoMinusRatio[SVTypeI]*(SHPRatio-HPRatio);
         }
         // else CutOffRatio=10000;
         // resolveHPRecord(HPCounts, TheContig, SignatureCluster, Core, AllPrimarySegments, CoverageWindows, WholeCoverage, Args, CoverageWindowsSums, CheckPoints, CheckPointInterval);
         // return;
+    }
+    else
+    {
+        // CutOffRatio+=float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2]);
+        CutOffRatio+=Args.LowHPPlus[SVTypeI]*(HPRatio-SHPRatio);
+        CutOffRatio+=Args.LowHPPlusRatio[SVTypeI]*(HPRatio-SHPRatio);
     }
     statCluster(SignatureCluster,SS,ST,SS2,ST2);
     // if (SVTypeI==0 or SVTypeI==1) if (!cflag) {Keep=false;return;}
@@ -804,7 +821,7 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     }
     if (SVType=="INS") InsConsensus=getInsConsensus(SVLen,SignatureCluster);
 
-    if (!HPGTKeep) genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
+    if (!HPGTKeep && Sample.count("GT")==0) genotype(TheContig,AllPrimarySegments,CoverageWindows,CoverageWindowsSums,CheckPoints,CheckPointInterval,Args);
     ID=".";
     QUAL=".";
     FILTER="PASS";
