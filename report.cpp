@@ -10,6 +10,7 @@
 #include <numeric>
 #include <stdio.h>
 #include <iterator>
+#include <gmp.h>
 
 using namespace std;
 
@@ -652,6 +653,29 @@ double getWeightSum(vector<Signature> & SignatureCluster)
     return WeightSum;
 }
 
+inline void biCdf(mpq_t Result, unsigned n, const mpq_t p, unsigned Start, unsigned End)
+{
+    mpq_t One,Pq,Subp;
+    mpz_t P;
+    mpq_set_ui(Result,0,1);
+    mpz_init(P);
+    mpq_init(One);
+    mpq_init(Pq);
+    mpq_init(Subp);
+    mpq_set_ui(One,1,1);
+    mpq_sub(Subp,One,p);
+    for (int i=Start;i<End;++i)
+    {
+        mpz_set_ui(P,1);
+        for (int j=n-i+1;j<=n;++j) mpz_mul_ui(P,P,j);
+        for (int j=1;j<=i;++j) mpz_tdiv_q_ui(P,P,j);
+        mpq_set_z(Pq,P);
+        for (int j=0;j<i;++j) mpq_mul(Pq,Pq,p);
+        for (int j=i;j<n;++j) mpq_mul(Pq,Pq,Subp);
+        mpq_add(Result,Result,Pq);
+    }
+}
+
 int VN=0;
 VCFRecord::VCFRecord()
 : SVLen(0),SVType(),SS(0),ST(0),SS2(0),ST2(0),LS(0),CV(0),CR(0),MinLength(0),MaxLength(0),MediumLength(0),Precise(0),InsConsensus(""),SVTypeI(0),CHROM(),Pos(0),ID(),REF(),ALT(),QUAL(),FILTER(),INFO(),Sample(),Keep(false)
@@ -669,7 +693,8 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
     assert(SignatureCluster.size()>=0);
     resizeCluster(SignatureCluster,Args.MaxClusterSize);
     Keep=true;
-    int HPCounts[3]={0,0,0};
+    // int HPCounts[3]={0,0,0};
+    HPCounts[0]=0;HPCounts[1]=0;HPCounts[2]=0;
     for (int i=0;i<SignatureCluster.size();++i)
     {
         ++HPCounts[SignatureCluster[i].HP];
@@ -702,10 +727,103 @@ VCFRecord::VCFRecord(const Contig & TheContig,vector<Signature> & SignatureClust
 
     //HP Ratio
     double SHPRatio=float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2]);
+    double GTHPRatio=0.8, GTHomoRatio=0.6;
+    float HPRatios[3]={0,0,0};
+    if (SHPRatio>HPRatio || SHPRatio>GTHPRatio)
+    {
+        for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
+    }
+    // if (SHPRatio>GTHPRatio)
+    // {
+    //     // double Alpha=0.0005;
+    //     mpq_t Alpha;
+    //     mpq_init(Alpha);
+    //     mpq_set_str(Alpha,"5/100000",10);
+    //     // fprintf(stderr, mpq_get_str(NULL,10,Alpha));
+    //     // exit(0);
+    //     // double PRandomOrHomo=0;
+    //     int HPCount=HPCounts[1]+HPCounts[2];
+    //     int MinHP=min(HPCounts[1],HPCounts[2]);
+    //     mpq_t MinorP,MajorP,One;
+    //     mpq_init(MinorP);
+    //     mpq_init(MajorP);
+    //     mpq_init(One);
+    //     mpq_set_ui(One,1,1);
+    //     // mpq_t SubAlpha;
+    //     // mpq_init(SubAlpha);
+    //     // mpq_sub(SubAlpha,One,Alpha);
+    //     mpq_set_str(MinorP,"15/1000",10);
+    //     mpq_sub(MajorP,One,MinorP);
+    //     // if (HPCount>=30 && MinHP>0.3*HPCount) Sample["GT"]="1/1";
+    //     // else if (HPCount>=30)
+    //     {
+    //         // mpq_t MultipleP;
+    //         // mpz_t MPBase;
+    //         // mpz_init(MPBase);
+    //         // mpq_init(MultipleP);
+    //         // mpz_set_ui(MPBase,2);
+    //         // mpz_pow_ui(MPBase,MPBase,HPCount);
+    //         // mpq_set_z(MultipleP,MPBase);
+    //         // mpq_inv(MultipleP,MultipleP);
+    //         // mpz_t P;
+    //         // mpz_init(P);
+    //         // mpq_t Pq;
+    //         // mpq_init(Pq);
+    //         mpq_t PRandom;
+    //         mpq_init(PRandom);
+    //         mpq_set_ui(PRandom,0,1);
+    //         // double MultipleP=pow(0.5,HPCount);
+    //         // for (int i=0;i<=MinHP;++i)
+    //         biCdf(PRandom,HPCount,MinorP,MinHP,HPCount);
+    //         // for (int i=MinHP;i<HPCount;++i)
+    //         // {
+    //         //     // tgamma(i+1)==i!
+    //         //     //binominal distribution
+
+    //         //     mpz_set_ui(P,1);
+    //         //     for (int j=HPCount-i+1;j<=HPCount;++j) mpz_mul_ui(P,P,j);
+    //         //     for (int j=1;j<=i;++j) mpz_tdiv_q_ui(P,P,j);
+    //         //     //Now P=C(HPCount,i)
+    //         //     mpq_set_z(Pq,P);
+    //         //     // mpq_mul(Pq,Pq,MultipleP);
+    //         //     for (int j=0;j<i;++j) mpq_mul(Pq,Pq,MinorP);
+    //         //     for (int j=i;j<HPCount;++j) mpq_mul(Pq,Pq,MajorP);
+    //         //     mpq_add(PRandom,PRandom,Pq);
+    //         //     // fprintf(stderr,"PRandom:%s, Alpha:%s, MajorP:%s, MinorP:%s\n",mpq_get_str(NULL,10,PRandom),mpq_get_str(NULL,10,Alpha),mpq_get_str(NULL,10,MajorP),mpq_get_str(NULL,10,MinorP));
+    //         //     // unsigned long long P=1;
+    //         //     // for (int j=HPCount-i+1;j<=HPCount;++j) P*=j;
+    //         //     // for (int j=1;j<=i;++j) P/=j;
+    //         //     // double dP=((double)P)*MultipleP;
+    //         //     // PRandomOrHomo+=dP;
+    //         // }
+    //         // if (MinHP!=0) fprintf(stderr,"PRandom:%s, Alpha:%s, MajorP:%s, MinorP:%s, MinHP:%d, HP:%d\n",mpq_get_str(NULL,10,PRandom),mpq_get_str(NULL,10,Alpha),mpq_get_str(NULL,10,MajorP),mpq_get_str(NULL,10,MinorP),MinHP,HPCount);
+    //         // mpq_sub(PRandom,One,PRandom);
+    //         // if (MinHP!=0) fprintf(stderr,"PRandom:%s, Alpha:%s, MajorP:%s, MinorP:%s, MinHP:%d, HP:%d, Success:%d\n",mpq_get_str(NULL,10,PRandom),mpq_get_str(NULL,10,Alpha),mpq_get_str(NULL,10,MajorP),mpq_get_str(NULL,10,MinorP),MinHP,HPCount,mpq_cmp(PRandom,SubAlpha)>0);
+    //         // if (PRandomOrHomo<Alpha)
+    //         // if (mpq_cmp(PRandom,Alpha)<0)
+    //         if (mpq_cmp(PRandom,Alpha)<0)
+    //         {
+    //             Sample["GT"]="1/1";
+    //         }
+    //     }
+    //     // if (HPRatios[1]/(HPRatios[1]+HPRatios[2])> GTHomoRatio)
+    //     // {
+    //     //     // HPGTKeep=true;
+    //     //     Sample["GT"]="0/1";
+    //     // }
+    //     // else if (HPRatios[2]/(HPRatios[1]+HPRatios[2])>GTHomoRatio)
+    //     // {
+    //     //     // HPGTKeep=true;
+    //     //     Sample["GT"]="0/1";
+    //     // }
+    //     // else
+    //     // {
+    //     //     // HPGTKeep=true;
+    //     //     Sample["GT"]="1/1";
+    //     // }
+    // }
     if (SHPRatio>HPRatio)
     {
-        float HPRatios[3]={0,0,0};
-        for (int i=0;i<3;++i) HPRatios[i]=float(HPCounts[i])/float(SignatureCluster.size());
         if (HPRatios[1]/(HPRatios[1]+HPRatios[2])>HomoRatio || HPRatios[2]/(HPRatios[1]+HPRatios[2])>HomoRatio)
         {
             sort(SignatureCluster.begin(),SignatureCluster.end(),[](Signature &a, Signature&b){
@@ -1002,7 +1120,7 @@ void VCFRecord::resolveRef(const Contig & TheContig, faidx_t * Ref, unsigned Typ
     free(TSeq);
     ++Pos;++End;//trans to 1-based
     if (INFO!="") INFO+=";";
-    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+(SVType=="DUP"?";CN="+to_string(CN):"")+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)+";PSTD="+to_string(PSD)DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
+    INFO+=(Precise?"PRECISE;":"IMPRECISE;")+string("SVTYPE=")+SVType+";END="+to_string(End)+";SVLEN="+to_string(SVType=="DEL"?-SVLen:SVLen)+(SVType=="DUP"?";CN="+to_string(CN):"")+";SS="+to_string(SS)+";ST="+to_string(ST)+";LS="+to_string(LS)+";CV="+to_string(CV)+";SS2="+to_string(SS2)+";ST2="+to_string(ST2)+";CC="+to_string(CC)+";CR="+to_string(CR)+";M3L="+to_string(MinLength)+","+to_string(MediumLength)+","+to_string(MaxLength)+";PSTD="+to_string(PSD)+";HPC="+to_string(HPCounts[0])+","+to_string(HPCounts[1])+","+to_string(HPCounts[2])DEBUG_CODE(+(MergeStrings==""?"":(";MSs="+MergeStrings)));
 }
 
 VCFRecord::operator std::string() const
@@ -1103,6 +1221,7 @@ void addKledEntries(VCFHeader & Header)
     Header.addHeaderEntry(HeaderEntry("INFO","CR","Core ratio.","1","Float"));
     Header.addHeaderEntry(HeaderEntry("INFO","M3L","(min length, medium length, max length).","3","Integer"));
     Header.addHeaderEntry(HeaderEntry("INFO","PSTD","Position STD, -1 if not caclulated.","1","Float"));
+    Header.addHeaderEntry(HeaderEntry("INFO","HPC","HP counts:HP0,HP1,HP2.","3","Integer"));
     DEBUG_CODE(Header.addHeaderEntry(HeaderEntry("INFO","MSs","MergeStrings.","1","String"));)
     // Header.addHeaderEntry(HeaderEntry("INFO","CS","Nearby coverage for genotyping.(by windows)","1","Float"));
     Header.addHeaderEntry(HeaderEntry("ALT","DEL","Deletion"));
@@ -1165,5 +1284,58 @@ void HPClustersDistinction(vector<Signature> &Cluster, vector<vector<Signature>>
                 HPClusters[Cluster[i].HP].push_back(Cluster[i]);
             }
         }
+    }
+}
+
+void VCFRecord::hapGT(unsigned SmallHapCount, unsigned BigHapCount)
+{
+    double SHPRatio=float(HPCounts[1]+HPCounts[2])/float(HPCounts[0]+HPCounts[1]+HPCounts[2]);
+    double GTHPRatio=0.8;
+    if (SHPRatio>GTHPRatio)
+    {
+        mpq_t Alpha, MaxAlpha, MinAlpha;
+        mpq_init(Alpha);
+        mpq_init(MaxAlpha);
+        mpq_init(MinAlpha);
+        mpq_set_str(Alpha,"2/100000",10);
+        mpq_set_str(MaxAlpha,"5/100000",10);
+        mpq_set_str(MinAlpha,"1/1000000",10);
+        int HPCount=HPCounts[1]+HPCounts[2];
+        int MinHP=min(HPCounts[1],HPCounts[2]);
+        mpq_t MinorP,One,DefaultMinorP,MPRatio;
+        mpq_init(MinorP);
+        mpq_init(MPRatio);
+        mpq_init(One);
+        mpq_init(DefaultMinorP);
+        mpq_set_ui(One,1,1);
+        mpq_set_str(MinorP,"15/1000",10);
+        mpq_set_str(DefaultMinorP,"15/1000",10);
+        if (BigHapCount>100)
+        {
+            mpq_set_ui(MinorP,SmallHapCount,BigHapCount+SmallHapCount);
+            // mpq_div(MPRatio,DefaultMinorP,MinorP);
+            // mpq_div(MPRatio,MinorP,DefaultMinorP);
+            // mpq_mul(Alpha,Alpha,MPRatio);
+            // if (mpq_cmp(Alpha,MaxAlpha)>0) mpq_set(Alpha,MaxAlpha);
+            // else if (mpq_cmp(Alpha,MinAlpha)<0) mpq_set(Alpha,MinAlpha);
+        }
+        mpq_t PRandom;
+        mpq_init(PRandom);
+        mpq_set_ui(PRandom,0,1);
+        biCdf(PRandom,HPCount,MinorP,MinHP,HPCount);
+        if (mpq_cmp(PRandom,Alpha)<0)
+        {
+            if (Sample["GT"]!="1/1") ConcurrentGT=2;
+            else ConcurrentGT=1;
+            Sample["GT"]="1/1";
+        }
+        // else
+        // {
+        //     if (ConcurrentGT==2)//If changed last round, change back
+        //     {
+        //         ConcurrentGT=1;
+        //         Sample["GT"]="0/1";
+        //     }
+        // }
     }
 }
