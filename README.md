@@ -1,4 +1,4 @@
-# Kled: a haplotype-aware structural variant calling approach for Oxford Nanopore sequencing data
+# HapKled: a haplotype-aware structural variant calling approach for Oxford Nanopore sequencing data
 ## Usage
 Before running HapKled you should first compile (see compiling the haplotype-aware kled) the haplotype-aware kled and put the path of it to the environment variable HapAwareKled.
 ```
