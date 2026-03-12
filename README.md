@@ -1,4 +1,7 @@
 # HapKled: a haplotype-aware structural variant calling approach for Oxford Nanopore sequencing data
+
+> **Note:** This repository may not contain the latest version. For the most up-to-date code, please visit the main kled repository at [CoREse/kled](https://github.com/CoREse/kled).
+
 ## Usage
 Before running HapKled you should first compile (see compiling the haplotype-aware kled) the haplotype-aware kled and put the path of it to the environment variable HapAwareKled.
 ```
